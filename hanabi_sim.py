@@ -1,16 +1,20 @@
+class Card:
+  '''A Hanabi card, comprised of a number and a string color'''
+
+  def __init__(self, number, color):
+    self.number = number
+    self.color = color
+
+  def __str__(self):
+    return self.number + self.color[0]
+
 class HanabiState(Object):
   def __init__(self, ...):
     self.cur_player = 0
 
-class HanabiGame(object):
+class BaseHanabiGame(object):
   def __init__(self, num_players):
     raise NotImplementedError
-    self.cards_per_player = 5 # TODO: Change based on num_players
-    self.num_suits = 5
-    self.suits = ['red', 'white', 'blue', 'green', 'yellow']
-    self.max_hint_tokens = 8
-    self.hint_tokens = 8
-    self.bomb_tokens = 3
 
   def get_state_vector(self, global_state):
     '''
@@ -39,3 +43,21 @@ class HanabiGame(object):
     '''
     raise NotImplementedError
     return global_state, reward, done
+
+REGULAR_HANABI_CARDS_PER_PLAYER = {
+  2: 5,
+  3: 5,
+  4: 4,
+  5: 4
+}
+
+class RegularHanabiGame(object):
+  '''The regular Hanabi game, 5 colors.'''
+
+  def __init__(self, num_players):
+    self.cards_per_player = REGULAR_HANABI_CARDS_PER_PLAYER[num_players]
+    self.num_colors = 5
+    self.colors = ['red', 'white', 'blue', 'green', 'yellow']
+    self.max_hint_tokens = 8
+    self.hint_tokens = 8
+    self.bomb_tokens = 3
