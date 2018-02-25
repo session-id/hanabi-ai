@@ -12,7 +12,7 @@ COLOR_TO_TERM = {
   'blue': 'cyan'
 }
 
-class Card:
+class Card(object):
   '''A Hanabi card, comprised of a number and a string color'''
 
   def __init__(self, number, color):
@@ -29,7 +29,7 @@ class Card:
   def __repr__(self):
     return self.__str__()
 
-class Deck:
+class Deck(object):
   '''A stack of Hanabi cards.'''
 
   def __init__(self, cards_and_counts):
@@ -93,6 +93,34 @@ class BaseHanabiGame(object):
     raise NotImplementedError
     return global_state, reward, done
 
+class HintedCard(object):
+  def __init__(self, card):
+    self.card = card
+    self.color_hint = False
+    self.number_hint = False
+
+  @property
+  def number(self):
+    return self.card.number
+
+  @property
+  def color(self):
+    return self.card.color
+
+  def __str__(self):
+    if self.number_hint and self.color_hint:
+      extra = '*'
+    elif self.number_hint:
+      extra = '#'
+    elif self.color_hint:
+      extra = 'c'
+    else:
+      extra = ' '
+    return str(self.card) + extra
+
+  def __repr__(self):
+    return self.__str__()
+
 REGULAR_HANABI_CARDS_PER_PLAYER = {
   2: 5,
   3: 5,
@@ -128,7 +156,7 @@ class HanabiState(object):
     for player_num in range(self.num_players):
       hand = []
       for i in range(self.cards_per_player):
-        hand.append(self.deck.draw())
+        hand.append(HintedCard(self.deck.draw()))
       self.player_hands.append(hand)
     self.hint_history = []
     self.cur_player = 0
@@ -137,6 +165,12 @@ class HanabiState(object):
     self.bomb_tokens = self.starting_bomb_tokens
     self.turn_no = 0
     self.turns_until_end = self.num_players
+
+  def add_hint_token(self):
+    self.hint_tokens = min(self.max_hint_tokens, self.hint_tokens + 1)
+
+  def advance_player(self):
+    self.cur_player = (self.cur_player + 1) % self.num_players
 
 class RegularHanabiGameEasyFeatures(object):
   '''
@@ -207,5 +241,71 @@ class RegularHanabiGameEasyFeatures(object):
   def get_num_actions(self):
     return 2 * self.cards_per_player + (self.num_players - 1) * (self.num_colors + self.max_number)
 
-  def take_action(self, action):
-    pass
+  def take_action(self, state, action):
+    done = False
+    reward = 0
+
+    # If not needed, we can remove this copying for more efficiency
+    state = copy.deepcopy(state)
+    state.cur_player = state.cur_player
+    if action not in self.get_valid_actions(state):
+      raise RuntimeError("Invalid action: {}".format(action))
+
+    # Play own cards
+    if action < self.cards_per_player:
+      played_index = action
+      card_played = state.player_hands[state.cur_player][played_index].card
+      if state.played_numbers[card_played.color] + 1 == card_played.number:
+        if card_played.number == 5:
+          state.add_hint_token()
+        state.played_numbers[card_played.color] += 1
+        reward = 1
+      else:
+        state.bomb_tokens -= 1
+    # Discard
+    elif action < self.cards_per_player * 2:
+      played_index = action - self.cards_per_player
+      state.add_hint_token()
+
+    # For both Discard and Play, need to redraw and shift
+    if action < self.cards_per_player * 2:
+      if len(state.deck) > 0:
+        drawn_card = HintedCard(state.deck.draw())
+        previous_hand = state.player_hands[state.cur_player]
+        state.player_hands[state.cur_player] = [drawn_card] + previous_hand[:played_index]\
+          + previous_hand[played_index+1:]
+      else:
+        previous_hand = state.player_hands[state.cur_player]
+        state.player_hands[state.cur_player] = previous_hand[:played_index]\
+          + previous_hand[played_index+1:]
+
+    # Hint
+    if action >= self.cards_per_player * 2:
+      hint_index = action - self.cards_per_player * 2
+      player_hinted = (state.cur_player + hint_index // (self.max_number + self.num_colors) + 1)\
+        % self.num_players
+      t = hint_index % (self.max_number + self.num_colors)
+      # Number hint
+      if t < self.max_number:
+        hinted_number = t + 1
+        for card in state.player_hands[player_hinted]:
+          if card.number == hinted_number:
+            card.number_hint = True
+      # Color hint
+      else:
+        hinted_color = self.colors[t - self.max_number]
+        for card in state.player_hands[player_hinted]:
+          if card.color == hinted_color:
+            card.color_hint = True
+
+    if state.turns_until_end <= 0:
+      done = True
+
+    if len(state.deck) == 0:
+      state.turns_until_end -= 1
+
+    state.advance_player()
+    if state.bomb_tokens == 1:
+      done = True
+
+    return state, reward, done
