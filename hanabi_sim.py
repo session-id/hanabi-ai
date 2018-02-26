@@ -1,6 +1,8 @@
 from __future__ import print_function
 
+from collections import Counter
 import copy
+import numpy as np
 import random
 from termcolor import colored
 
@@ -29,6 +31,12 @@ class Card(object):
   def __repr__(self):
     return self.__str__()
 
+  def __lt__(self, other):
+    return (self.color, self.number) < (other.color, other.number)
+
+  def __eq__(self, other):
+    return self.number == other.number and self.color == other.color
+
 class Deck(object):
   '''A stack of Hanabi cards.'''
 
@@ -37,6 +45,9 @@ class Deck(object):
     for card, count in cards_and_counts.items():
       for i in range(count):
         self.cards_set.add((card, i))
+
+  def cards(self):
+    return [card for card, _ in self.cards_set]
 
   def draw(self):
     drawn_card = random.sample(self.cards_set, 1)[0]
@@ -63,7 +74,7 @@ class BaseHanabiGame(object):
   def get_num_actions(self):
     raise NotImplementedError
 
-  def get_state_vector(self, global_state):
+  def get_state_vector(self, state):
     '''
     Output:
       state_vector: a vector containing the feature vector corresponding to the game state
@@ -71,17 +82,17 @@ class BaseHanabiGame(object):
     '''
     raise NotImplementedError
 
-  def get_valid_actions(self, global_state):
+  def get_valid_actions(self, state):
     '''
     Output:
       valid_actions: a set containing the indices of valid actions
     '''
     raise NotImplementedError
 
-  def take_action(self, global_state, action):
+  def take_action(self, state, action):
     '''
     Input:
-      global_state: current_state
+      state: current_state
       action: integer corresponding to index of action taken
         actions are numbered in blocks as follows. x = # of cards in hand, n = # of players,
         h = # of possible hints:
@@ -98,13 +109,15 @@ class BaseHanabiGame(object):
       done: a boolean indicating if the episode has finished
     '''
     raise NotImplementedError
-    return global_state, reward, done
+    return state, reward, done
 
 class HintedCard(object):
-  def __init__(self, card):
+  def __init__(self, card, max_number, colors):
     self.card = card
     self.color_hint = False
     self.number_hint = False
+    self.possible_numbers = set(list(range(1, max_number+1)))
+    self.possible_colors = set(colors)
 
   @property
   def number(self):
@@ -154,6 +167,10 @@ class HanabiState(object):
         cards_and_counts[Card(number, color)] = number_count
     self.base_deck = Deck(cards_and_counts)
 
+  ''' This method is just for printing. '''
+  def get_pretty_board(self):
+    return [Card(num, color) for color, num in self.played_numbers.items()]
+
   def initialize_random(self):
     '''
     Initialize a random starting hand for all players.
@@ -163,7 +180,7 @@ class HanabiState(object):
     for player_num in range(self.num_players):
       hand = []
       for i in range(self.cards_per_player):
-        hand.append(HintedCard(self.deck.draw()))
+        hand.append(HintedCard(self.deck.draw(), self.max_number, self.colors))
       self.player_hands.append(hand)
     self.cur_player = 0
     self.played_numbers = {color: 0 for color in self.colors}
@@ -200,7 +217,7 @@ class RegularHanabiGameEasyFeatures(object):
     state.initialize_random()
     return state
 
-  def get_action_names(self, global_state):
+  def get_action_names(self, state):
     action_names = []
     # Play own cards
     for i in range(self.cards_per_player):
@@ -210,7 +227,7 @@ class RegularHanabiGameEasyFeatures(object):
       action_names.append("Play slot {}".format(i))
     # Give hints
     for other_player_num in range(1, self.num_players):
-      player_id = (global_state.cur_player + other_player_num) % self.num_players
+      player_id = (state.cur_player + other_player_num) % self.num_players
       for number in range(1, self.max_number+1):
         action_names.append("Player {}: hint {}'s".format(player_id, number))
       for color in self.colors:
@@ -218,7 +235,7 @@ class RegularHanabiGameEasyFeatures(object):
           .format(player_id, colored(color, COLOR_TO_TERM[color])))
     return action_names
 
-  def get_valid_actions(self, global_state):
+  def get_valid_actions(self, state):
     valid_actions = set()
     action_num = 0
     # Play own cards
@@ -230,10 +247,10 @@ class RegularHanabiGameEasyFeatures(object):
       valid_actions.add(action_num)
       action_num += 1
     # Give hints
-    if global_state.hint_tokens > 0:
+    if state.hint_tokens > 0:
       for other_player_num in range(1, self.num_players):
-        player_id = (global_state.cur_player + other_player_num) % self.num_players
-        player_hand = global_state.player_hands[player_id]
+        player_id = (state.cur_player + other_player_num) % self.num_players
+        player_hand = state.player_hands[player_id]
         for number in range(1, self.max_number+1):
           if any(card.number == number for card in player_hand):
             valid_actions.add(action_num)
@@ -276,7 +293,7 @@ class RegularHanabiGameEasyFeatures(object):
     # For both Discard and Play, need to redraw and shift
     if action < self.cards_per_player * 2:
       if len(state.deck) > 0:
-        drawn_card = HintedCard(state.deck.draw())
+        drawn_card = HintedCard(state.deck.draw(), self.max_number, self.colors)
         previous_hand = state.player_hands[state.cur_player]
         state.player_hands[state.cur_player] = [drawn_card] + previous_hand[:played_index]\
           + previous_hand[played_index+1:]
@@ -287,6 +304,7 @@ class RegularHanabiGameEasyFeatures(object):
 
     # Hint
     if action >= self.cards_per_player * 2:
+      state.hint_tokens -= 1
       hint_index = action - self.cards_per_player * 2
       player_hinted = (state.cur_player + hint_index // (self.max_number + self.num_colors) + 1)\
         % self.num_players
@@ -297,12 +315,18 @@ class RegularHanabiGameEasyFeatures(object):
         for card in state.player_hands[player_hinted]:
           if card.number == hinted_number:
             card.number_hint = True
+            card.possible_numbers = set([card.number])
+          elif hinted_number in card.possible_numbers:
+            card.possible_numbers.remove(hinted_number)
       # Color hint
       else:
         hinted_color = self.colors[t - self.max_number]
         for card in state.player_hands[player_hinted]:
           if card.color == hinted_color:
             card.color_hint = True
+            card.possible_colors = set([card.color])
+          elif hinted_color in card.possible_colors:
+            card.possible_colors.remove(hinted_color)
 
     if state.turns_until_end <= 0:
       done = True
@@ -310,8 +334,118 @@ class RegularHanabiGameEasyFeatures(object):
     if len(state.deck) == 0:
       state.turns_until_end -= 1
 
-    state.advance_player()
-    if state.bomb_tokens == 1:
+    # If perfect score achieved
+    if all(num == self.max_number for num in state.played_numbers.values()):
       done = True
 
+    if state.bomb_tokens == 0:
+      done = True
+
+    state.advance_player()
+
     return state, reward, done
+
+  def get_state_vector(self, state):
+    remaining_counter = Counter()
+    for card in state.deck.cards() + [x.card for x in state.player_hands[state.cur_player]]:
+      remaining_counter[card] += 1
+
+    all_vectors = []
+
+    # Other players' cards
+    for other_player_num in range(1, self.num_players):
+      player_id = (state.cur_player + other_player_num) % self.num_players
+      # TODO: the one hot encoding for number + color + None has one degree of linear redundancy
+      for hinted_card in state.player_hands[player_id]:
+        if hinted_card is None:
+          card_vector = [0] * (self.num_colors + self.max_number + 5)
+        if hinted_card is not None:
+          number_vector = [0] * self.max_number
+          number_vector[hinted_card.number - 1] = 1
+          color_vector = [0] * self.num_colors
+          color_vector[self.colors.index(hinted_card.color)] = 1
+
+          playable = dead = indispensable = 0
+          if hinted_card.number == state.played_numbers[hinted_card.color] + 1:
+            playable = 1
+          if hinted_card.number <= state.played_numbers[hinted_card.color]:
+            dead = 1
+          if dead != 1 and remaining_counter[hinted_card.card] == 0:
+            active_copies = 0
+            for player_num in range(self.num_players):
+              for hinted_card2 in state.player_hands[player_num]:
+                if hinted_card2.card == hinted_card.card:
+                  active_copies += 1
+            if active_copies == 1:
+              indispensable = 1
+          extras_vector = [int(hinted_card.number_hint), int(hinted_card.color_hint), playable, dead, indispensable]
+
+          card_vector = number_vector + color_vector + extras_vector
+
+        all_vectors.append(card_vector)
+
+    # Your own cards
+    for card in state.player_hands[state.cur_player]:
+      if card is None:
+        card_vector = [0] * (self.num_colors + self.max_number + 5)
+      else:
+        number_vector = [1 if num in card.possible_numbers else 0 for num in range(1, self.max_number+1)]
+        color_vector = [1 if color in card.possible_colors else 0 for color in self.colors]
+
+        total_possibilities = 0
+        indispensable_poss = 0
+        playable_poss = 0
+        dead_poss = 0
+        for possible_card in remaining_counter:
+          if remaining_counter[possible_card] > 0:
+            if possible_card.number in card.possible_numbers and possible_card.color in card.possible_colors:
+              total_possibilities += 1
+              if state.played_numbers[possible_card.color] + 1 == possible_card.number:
+                playable_poss += 1
+              # Check if dead
+              if state.played_numbers[possible_card.color] >= possible_card.number:
+                dead_poss += 1
+              # Note: indispensable is mutually exclusive with dead
+              elif remaining_counter[possible_card] == 1:
+                indispensable_poss += 1
+        if total_possibilities == 0:
+          raise RuntimeError("There are zero possibilities for what this card can be. Something went wrong.")
+        playable = int(playable_poss == total_possibilities)
+        indispensable = int(indispensable_poss == total_possibilities)
+        dead = int(dead_poss == total_possibilities)
+        extras_vector = [int(card.number_hint), int(card.color_hint), playable, dead, indispensable]
+
+        card_vector = number_vector + color_vector + extras_vector
+
+      all_vectors.append(card_vector)
+
+    # Hint token
+    hint_vector = [0] * self.max_hint_tokens
+    if state.hint_tokens > 0:
+      hint_vector[state.hint_tokens - 1] = 1
+    bomb_vector = [0] * (self.starting_bomb_tokens - 1)
+    if state.bomb_tokens > 1:
+      bomb_vector[state.bomb_tokens - 2] = 1
+    all_vectors.append(hint_vector)
+    all_vectors.append(bomb_vector)
+
+    # Already played cards
+    for color in self.colors:
+      x = [0] * self.max_number
+      if state.played_numbers[color] > 0:
+        x[state.played_numbers[color] - 1] = 1
+      all_vectors.append(x)
+
+    # Deck exhausted
+    exhausted = [0]
+    if len(state.deck) == 0:
+      exhausted = 1
+    all_vectors.append(exhausted)
+
+    feature_vector = np.array([item for sublist in all_vectors for item in sublist])
+
+    return feature_vector
+
+  def get_state_vector_size(self):
+    return (self.num_colors + self.max_number + 5) * self.cards_per_player * self.num_players + self.max_hint_tokens\
+      + (self.starting_bomb_tokens-1) + self.max_number * self.num_colors + 1
