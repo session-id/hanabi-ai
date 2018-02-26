@@ -439,7 +439,7 @@ class RegularHanabiGameEasyFeatures(object):
     # Deck exhausted
     exhausted = [0]
     if len(state.deck) == 0:
-      exhausted = 1
+      exhausted = [1]
     all_vectors.append(exhausted)
 
     feature_vector = np.array([item for sublist in all_vectors for item in sublist])
