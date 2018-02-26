@@ -50,6 +50,13 @@ class BaseHanabiGame(object):
   def __init__(self, num_players):
     raise NotImplementedError
 
+  def get_start_state(self):
+    '''
+    Output:
+      start_state: a randomized starting state for the game.
+    '''
+    raise NotImplementedError
+
   def get_state_vector_size(self):
     raise NotImplementedError
 
@@ -158,7 +165,6 @@ class HanabiState(object):
       for i in range(self.cards_per_player):
         hand.append(HintedCard(self.deck.draw()))
       self.player_hands.append(hand)
-    self.hint_history = []
     self.cur_player = 0
     self.played_numbers = {color: 0 for color in self.colors}
     self.hint_tokens = self.max_hint_tokens
