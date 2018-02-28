@@ -11,6 +11,12 @@ pip install -r requirements.txt
 
 ## TODOs
 
+Chris
+
 - use a decaying learning rate
 - use a decaying epsilon for e-greedy
+
+Arthur
+
 - implement ReplayBuffer
+- implement linear and deep Q-functions

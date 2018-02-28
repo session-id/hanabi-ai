@@ -1,3 +1,7 @@
+from replay_buffer import ReplayBuffer
+import os
+import time
+from collections import deque
 import numpy as np
 import tensorflow as tf
 
@@ -53,7 +57,7 @@ class QL_Model(RL_Model):
             self.sess = tf.Session()
 
         self.saver = tf.train.Saver()
-        self.summary_writer = tf.summary.FileWriter(config.log_dir, sess.graph)
+        self.summary_writer = tf.summary.FileWriter(config.log_dir, self.sess.graph)
 
         # build the graph
         self.build()
@@ -149,11 +153,10 @@ class QL_Model(RL_Model):
                         test_avg_rewards.append(np.mean(test_rewards))
 
                     if step % self.config.print_freq == 0:
-                        # TODO: print Max Q, Max Reward, Avg Reward, Epsilon (for e-greedy), learning rate, gradient norm
                         loss = self.train_step(step, replay_buffer, return_stats=True)
                         duration = time.time() - start_time
                         print('Step {:05d}. Episode {:02d}. loss: {:0.4f}, time: {:0.3f}s'.format(
-                            step, epsiode, loss, duration))
+                            step, episode, loss, duration))
                     else:
                         self.train_step(step, replay_buffer, return_stats=False)
 
@@ -162,7 +165,6 @@ class QL_Model(RL_Model):
                     break
 
             episode += 1
-            episode_rewards.append(total_reward)
             self.update_averages('train', reward=total_reward, q_values=None)
 
         # evaluate again at the end of training
@@ -247,7 +249,7 @@ class QL_Model(RL_Model):
 
         if return_stats:
             _, loss  = self.sess.run([self.train_op, self.loss], feed_dict=feed_dict)
-            
+
             # write the summary to TensorBoard
             summary_fd = {
                 self.summary_placeholders['rewards']: self.metrics['rewards'],
@@ -332,12 +334,12 @@ class QL_Model(RL_Model):
 
     def _add_placeholders(self):
         self.placeholders = {
-            'states'      = tf.placeholder(tf.float32, [None, self.train_simulator.get_state_vector_size()]),
-            'actions'     = tf.placeholder(tf.int32,   [None]),
-            'rewards'     = tf.placeholder(tf.float32, [None]),
-            'states_next' = tf.placeholder(tf.float32, [None, self.train_simulator.get_state_vector_size()]),
-            'done_mask'   = tf.placeholder(tf.bool,    [None]),
-            'lr'          = tf.placeholder(tf.float32, [])
+            'states'      : tf.placeholder(tf.float32, shape=[None, self.train_simulator.get_state_vector_size()]),
+            'actions'     : tf.placeholder(tf.int32,   shape=[None]),
+            'rewards'     : tf.placeholder(tf.float32, shape=[None]),
+            'states_next' : tf.placeholder(tf.float32, shape=[None, self.train_simulator.get_state_vector_size()]),
+            'done_mask'   : tf.placeholder(tf.bool,    shape=[None]),
+            'lr'          : tf.placeholder(tf.float32, shape=[])
         }
 
 
@@ -347,7 +349,7 @@ class QL_Model(RL_Model):
 
         Q_samp(s) = r if done
                   = r + gamma * max_a' Q_target(s', a')
-        loss = (Q_samp(s) - Q(s, a))^2 
+        loss = (Q_samp(s) - Q(s, a))^2
         '''
         not_done = 1 - tf.cast(self.placeholders['done_mask'], tf.float32)
         q_target = self.placeholders['rewards'] + not_done * self.config.gamma * tf.reduce_max(self.target_q, axis=1)
