@@ -341,7 +341,7 @@ class QL_Model(RL_Model):
         }
 
         avg_reward, var_reward = tf.nn.moments(self.summary_placeholders['rewards'], axes=[0])
-        avg_q, var_q = tf.nn.moments(self.summary_placeholders['qs'], axes=[0])
+        avg_q, var_q = tf.nn.moments(self.summary_placeholders['q_values'], axes=[0])
 
         summary_tensors = {
             'avg_reward': avg_reward,

@@ -1,5 +1,4 @@
 class QL_Config(object):
-    
     train_num_steps = 200       # number of steps for training
     train_start = 0             # how many steps of observation before beginning training
     print_freq = 5              # how often to print loss and other training statistics (training steps)
@@ -18,6 +17,8 @@ class QL_Config(object):
     soft_epsilon = 0.01         # epsilon for e-greedy exploration
     
     batch_size = 20             # batch size
+
+    q_values_metrics_size = 1000
 
 
 class LinearQL_Config(object):
@@ -41,6 +42,8 @@ class LinearQL_Config(object):
     batch_size = 20             # batch size
 
     widths = []           # widths if you want to do mlp stuff
+
+    q_values_metrics_size = 1000
 
 
 class DeepQL_Config(object):
