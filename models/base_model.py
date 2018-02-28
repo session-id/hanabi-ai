@@ -263,7 +263,7 @@ class QL_Model(RL_Model):
 
     def build(self):
         # self.placeholders: dict, {str => tf.placeholder}
-        self.add_placeholders()
+        self._add_placeholders()
 
         # self.loss
         self._add_loss_op()
