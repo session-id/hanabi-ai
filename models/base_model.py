@@ -140,7 +140,7 @@ class QL_Model(RL_Model):
         if ep_reward is not None:
             metrics_dict['rewards'].append(ep_reward)
         if q_values is not None:
-            metrics_dict['q_values'].append(q_values)
+            metrics_dict['q_values'].extend(q_values)
 
 
     def train(self):
@@ -175,7 +175,7 @@ class QL_Model(RL_Model):
                 action, q_values = self.get_action(features, valid_actions_mask)
                 new_state, reward, done = self.train_simulator.take_action(state, action)
 
-                new_features = self.train_simulator.get_state_vector(state)
+                new_features = self.train_simulator.get_state_vector(new_state)
                 replay_buffer.store(step, features, valid_actions_mask, action, reward, done, new_features)
 
                 state = new_state
@@ -225,7 +225,12 @@ class QL_Model(RL_Model):
             state = self.test_simulator.get_start_state()
 
             while True:
-                action, q_values = self.get_action(state)
+                features = self.train_simulator.get_state_vector(state)
+                valid_actions_mask = np.zeros(num_actions, dtype=bool)
+                valid_action_indices = list(self.train_simulator.get_valid_actions(state))
+                valid_actions_mask[valid_action_indices] = True
+
+                action, q_values = self.get_action(features, valid_actions_mask)
                 state, reward, done = self.test_simulator.take_action(state, action)
                 if step is not None:
                     self.update_averages('test', ep_reward=None, q_values=q_values)
@@ -284,14 +289,18 @@ class QL_Model(RL_Model):
         }
 
         if return_stats:
-            _, loss  = self.sess.run([self.train_op, self.loss], feed_dict=feed_dict)
-
             # write the summary to TensorBoard
             summary_fd = {
                 self.summary_placeholders['rewards']: self.metrics_train['rewards'],
                 self.summary_placeholders['q_values']: self.metrics_train['q_values']
             }
-            train_summary_str = self.sess.run(self.summaries_train, feed_dict=summary_fd)
+
+            # copy the summary feed_dict into feed_dict
+            for k, v in summary_fd.items():
+                feed_dict[k] = v
+
+            _, loss, train_summary_str  = self.sess.run([self.train_op, self.loss, self.summaries_train],
+                feed_dict=feed_dict)
             self.summary_writer.add_summary(train_summary_str, step)
             self.summary_writer.flush()
             return loss
