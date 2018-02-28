@@ -263,6 +263,11 @@ class QL_Model(RL_Model):
         else:
             self.sess.run(self.train_op, feed_dict=feed_dict)
 
+        # occasionaly update target network with q network
+        if t % self.config.target_update_freq == 0:
+            self.sess.run(self.update_target_op)
+
+
     def build(self):
         # self.placeholders: dict, {str => tf.placeholder}
         self._add_placeholders()
