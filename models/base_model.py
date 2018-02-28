@@ -120,7 +120,7 @@ class QL_Model(RL_Model):
         q_values = self.sess.run(self.q, feed_dict={self.placeholders['states']: [state],
                 self.placeholders['valid_actions_mask']: [valid_actions_mask]})[0]
         if np.random.random() < self.config.soft_epsilon:
-            valid_actions = list(self.train_simulator.get_valid_actions(state))
+            valid_actions = np.where(valid_actions_mask == True)[0] 
             random_action = np.random.choice(valid_actions)
             return random_action, q_values
         else:
@@ -218,6 +218,7 @@ class QL_Model(RL_Model):
         - rewards: list of float, rewards on config.test_num_episodes
         '''
         num_episodes = self.config.test_num_episodes
+        num_actions = self.test_simulator.get_num_actions()
         rewards = np.zeros(num_episodes, dtype=np.float64)
 
         for ep in range(self.config.test_num_episodes):
