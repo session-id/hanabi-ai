@@ -1,5 +1,4 @@
 import numpy as np
-import tensorflow as tf
 
 
 class RL_Model(object):
@@ -23,9 +22,24 @@ class RL_Model(object):
 
 
 class QL_Model(RL_Model):
+    '''
+    Abstract Q-learning model.
+
+    Subclasses must implement the following methods:
+    - get_action()
+    - save()
+    - train_step()
+    '''
 
     def train(self):
-        # initialize replay buffer and variables
+        '''Train the model
+
+        Returns
+        - test_avg_rewards: list of float, avg rewards from self.evaluate() every config.test_freq steps
+        '''
+        test_avg_rewards = []
+
+        # initialize replay buffer
         replay_buffer = ReplayBuffer() # TODO
 
         episode = 0
@@ -47,8 +61,9 @@ class QL_Model(RL_Model):
                 total_reward += reward
 
                 if step > self.config.train_start:
-                    if step % self.config.eval_freq == 0:
-                        self.evaluate()
+                    if step % self.config.test_freq == 0:
+                        test_rewards = self.evaluate()
+                        test_avg_rewards.append(np.mean(test_rewards))
 
                     if step % self.config.print_freq == 0:
                         # TODO: print Max Q, Max Reward, Avg Reward, Epsilon (for e-greedy), learning rate, gradient norm
@@ -67,14 +82,15 @@ class QL_Model(RL_Model):
             episode_rewards.append(total_reward)
 
         # evaluate again at the end of training
-        self.evaluate()
+        test_avg_rewards.append(self.evaluate())
+        return test_avg_rewards
 
 
     def evaluate(self):
         '''Evaluate model
 
         Returns
-        - avg_reward: float, average reward on self.config.test_num_episodes
+        - rewards: list of float, rewards on config.test_num_episodes
         '''
         num_episodes = self.config.test_num_episodes
         rewards = np.zeros(num_episodes, dtype=np.float64)
@@ -98,7 +114,7 @@ class QL_Model(RL_Model):
 
         msg = "Average reward: {:04.2f} +/- {:04.2f}".format(avg_reward, std_reward)
         print(msg)
-        return avg_reward
+        return rewards
 
 
     def train_step(self, step, replay_buffer, return_stats=False):
