@@ -91,7 +91,7 @@ class QL_Model(RL_Model):
         '''
         q_values = self.sess.run(self.q, feed_dict={self.placeholders['states']: [state]})[0]
         if np.random.random() < self.config.soft_epsilon:
-            random_action = np.random.choice(self.train_simulator.num_actions)
+            random_action = np.random.choice(self.train_simulator.get_num_actions())
             return random_action, q_values
         else:
             return np.argmax(q_values), q_values
@@ -130,7 +130,7 @@ class QL_Model(RL_Model):
         # train for self.config.train_num_steps steps
         while step < self.config.train_num_steps:
             total_reward = 0
-            state = self.train_simulator.reset()
+            state = self.train_simulator.get_start_state()
 
             # train multiple episodes
             while True:
@@ -185,7 +185,7 @@ class QL_Model(RL_Model):
 
         for ep in range(self.config.test_num_episodes):
             total_reward = 0
-            state = self.test_simulator.reset()
+            state = self.test_simulator.get_start_state()
 
             while True:
                 action, q_values = self.get_action(state)
@@ -274,6 +274,10 @@ class QL_Model(RL_Model):
         # self.summary_placeholders, self.summaries_train, self.summaries_test
         self._add_summaries()
 
+        # compute Q values
+        self.q = self.get_q_values_op(self.placeholders['states'], scope="q")
+        self.target_q = self.get_q_values_op(self.placeholders['states_next'], scope="target_q")
+
         # self.train_op
         optimizer = tf.train.AdamOptimizer(learning_rate=self.placeholders['lr'])
         self.train_op = optimizer.minimize(self.loss)
@@ -328,10 +332,10 @@ class QL_Model(RL_Model):
 
     def _add_placeholders(self):
         self.placeholders = {
-            'states'      = tf.placeholder(tf.float32, [None, self.train_simulator.state_dim]),
+            'states'      = tf.placeholder(tf.float32, [None, self.train_simulator.get_state_vector_size()]),
             'actions'     = tf.placeholder(tf.int32,   [None]),
             'rewards'     = tf.placeholder(tf.float32, [None]),
-            'states_next' = tf.placeholder(tf.float32, [None, self.train_simulator.state_dim]),
+            'states_next' = tf.placeholder(tf.float32, [None, self.train_simulator.get_state_vector_size()]),
             'done_mask'   = tf.placeholder(tf.bool,    [None]),
             'lr'          = tf.placeholder(tf.float32, [])
         }
@@ -347,7 +351,7 @@ class QL_Model(RL_Model):
         '''
         not_done = 1 - tf.cast(self.placeholders['done_mask'], tf.float32)
         q_target = self.placeholders['rewards'] + not_done * self.config.gamma * tf.reduce_max(self.target_q, axis=1)
-        action_indices = tf.one_hot(self.placeholders['actions'], self.train_simulator.num_actions)
+        action_indices = tf.one_hot(self.placeholders['actions'], self.train_simulator.get_num_actions())
         q_est = tf.reduce_sum(self.q * action_indices, axis=1)
         self.loss = tf.reduce_mean((q_target - q_est) ** 2)
 
