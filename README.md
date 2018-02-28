@@ -15,6 +15,7 @@ Chris
 
 - use a decaying learning rate
 - use a decaying epsilon for e-greedy
+- add filter against invalid actions
 
 Arthur
 
