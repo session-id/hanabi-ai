@@ -34,7 +34,7 @@ class QL_Model(RL_Model):
     '''
 
     def __init__(self, inputs, config, train_simulator, test_simulator):
-        super(RL_Model, self).__init__(
+        super(QL_Model, self).__init__(
             inputs=inputs,
             config=config,
             train_simulator=train_simulator,
@@ -56,11 +56,11 @@ class QL_Model(RL_Model):
         else:
             self.sess = tf.Session()
 
-        self.saver = tf.train.Saver()
-        self.summary_writer = tf.summary.FileWriter(config.log_dir, self.sess.graph)
-
         # build the graph
         self.build()
+
+        self.saver = tf.train.Saver()
+        self.summary_writer = tf.summary.FileWriter(config.log_dir, self.sess.graph)
 
 
     def _get_q_values_op(self, scope):
@@ -142,7 +142,7 @@ class QL_Model(RL_Model):
 
                 action, q_values = self.get_action(state)
                 new_state, reward, done = self.train_simulator.take_action(state, action)
-                replay_buffer.store(state, action, reward, done)
+                replay_buffer.store(state, action, reward, done, new_state)
                 state = new_state
                 total_reward += reward
                 self.update_averages('train', reward=None, q_values=q_values)
@@ -272,22 +272,22 @@ class QL_Model(RL_Model):
         # self.placeholders: dict, {str => tf.placeholder}
         self._add_placeholders()
 
-        # self.loss
-        self._add_loss_op()
-
-        # self.update_target_op
-        self._add_update_target_op()
-
-        # self.summary_placeholders, self.summaries_train, self.summaries_test
-        self._add_summaries()
-
         # compute Q values
         self.q = self.get_q_values_op(self.placeholders['states'], scope="q")
         self.target_q = self.get_q_values_op(self.placeholders['states_next'], scope="target_q")
 
+        # self.update_target_op
+        self._add_update_target_op()
+
+        # self.loss
+        self._add_loss_op()
+
         # self.train_op
         optimizer = tf.train.AdamOptimizer(learning_rate=self.placeholders['lr'])
         self.train_op = optimizer.minimize(self.loss)
+
+        # self.summary_placeholders, self.summaries_train, self.summaries_test
+        self._add_summaries()
 
 
     def _add_summaries(self):
