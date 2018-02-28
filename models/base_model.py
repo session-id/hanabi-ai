@@ -147,6 +147,7 @@ class QL_Model(RL_Model):
 
         # initialize replay buffer
         replay_buffer = ReplayBuffer() # TODO
+        num_actions = self.train_simulator.get_num_actions()
 
         episode = 0
         step = 0
@@ -162,7 +163,13 @@ class QL_Model(RL_Model):
 
                 action, q_values = self.get_action(state)
                 new_state, reward, done = self.train_simulator.take_action(state, action)
-                replay_buffer.store(step, state, action, reward, done, new_state)
+
+                valid_actions_mask = np.zeros(num_actions, dtype=bool)
+                valid_action_indices = list(self.train_simulator.get_valid_actions(state))
+                valid_actions_mask[valid_action_indices] = True
+
+                replay_buffer.store(step, state, valid_actions_mask, action, reward, done, new_state)
+
                 state = new_state
                 total_reward += reward
                 self.update_averages('train', reward=None, q_values=q_values)
@@ -285,7 +292,7 @@ class QL_Model(RL_Model):
             self.sess.run(self.train_op, feed_dict=feed_dict)
 
         # occasionaly update target network with q network
-        if t % self.config.target_update_freq == 0:
+        if step % self.config.target_update_freq == 0:
             self.sess.run(self.update_target_op)
 
 
@@ -366,9 +373,11 @@ class QL_Model(RL_Model):
             'actions'     : tf.placeholder(tf.int32,   shape=[None]),
             'rewards'     : tf.placeholder(tf.float32, shape=[None]),
             'states_next' : tf.placeholder(tf.float32, shape=[None, state_dim]),
-            'valid_actions_mask' : tf.placeholder(tf.bool, shape=[None, num_actions]),
+            'lr'          : tf.placeholder(tf.float32, shape=[]),
             'done_mask'   : tf.placeholder(tf.bool,    shape=[None]),
-            'lr'          : tf.placeholder(tf.float32, shape=[])
+
+            # boolean mask of valid actions given the current batch of states
+            'valid_actions_mask' : tf.placeholder(tf.bool, shape=[None, num_actions])
         }
 
 
