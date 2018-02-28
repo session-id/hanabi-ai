@@ -1,28 +1,49 @@
 import random
+from collections import deque
 
 class ReplayBuffer(object):
-    def __init__(self):
-        self.buffer_size = 100
-        self.samples = []
+    def __init__(self, buffer_size):
+        self.samples = deque(maxlen=buffer_size)
 
-    def store(self, step, state, action, reward, done, new_state):
-        if len(self.samples) >= self.buffer_size:
-            self.samples = self.samples[1:]
-        self.samples += [tuple(np.array(x) for x in [state, action, reward, done, new_state])]
+    def store(step, state, valid_actions_mask, action, reward, done, new_state):
+        '''
+        Args
+        - step: int
+        - state: np.array, shape [state_dim]
+        - valid_actions_mask: np.array, shape [num_actions]
+        - action: int
+        - reward: float
+        - done: bool
+        - new_state: np.array, shape [state_dim]
+        '''
+        self.samples.append({
+            'state': state,
+            'valid_actions_mask': valid_actions_mask,
+            'action': action,
+            'reward': reward,
+            'done': done,
+            'new_state': new_state
+        })
 
     def sample(self, batch_size):
-        if batch_size > self.buffer_size:
-            raise RuntimeError("Batch size ({}) cannot be larger than buffer size ({}).".format(batch_size, self.buffer_size))
+        '''
+        Returns: batch, dict {str: np.array}, where keys are:
+        - 'states'
+        - 'valid_actions_mask'
+        - 'actions'
+        - 'rewards'
+        - 'states_next'
+        - 'done_mask'
+        '''
+        # sample with replacement
+        batch_samples = random.choices(self.samples, batch_size)
 
-        indices = random.sample(range(self.buffer_size), batch_size)
-        batch_samples = []
-        for index in indices:
-            batch_samples.append(self.samples[index])
-        states, actions, rewards, states_next, done_mask = zip(*batch_samples)
-        batch = {} # set states, actions, rewards, states_next, done_mask
-        batch['states'] = states
-        batch['actions'] = actions
-        batch['rewards'] = rewards
-        batch['states_next'] = states_next
-        batch['done_mask'] = done_mask
+        batch = {
+            'states': np.stack(sample['state'] for sample in batch_samples),
+            'valid_actions_mask': np.stack(sample['valid_actions_mask'] for sample in batch_samples),
+            'actions': np.array(sample['action'] for sample in batch_samples),
+            'rewards': np.array(sample['reward'] for sample in batch_samples),
+            'states_next': np.stack(sample['state_next'] for sample in batch_samples),
+            'done_mask': np.array(sample['done'] for sample in batch_samples)
+        }
         return batch
