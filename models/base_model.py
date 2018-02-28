@@ -1,4 +1,4 @@
-from replay_buffer import ReplayBuffer
+from models.replay_buffer import ReplayBuffer
 import os
 import time
 from collections import deque
@@ -54,6 +54,7 @@ class QL_Model(RL_Model):
             sess_config.gpu_options.allow_growth = True
             self.sess = tf.Session(config=sess_config)
         else:
+            os.environ['CUDA_VISIBLE_DEVICES'] = ''
             self.sess = tf.Session()
 
         # build the graph

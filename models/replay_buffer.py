@@ -1,5 +1,6 @@
 from collections import deque
 import numpy as np
+import random
 
 class ReplayBuffer(object):
     def __init__(self, buffer_size):
@@ -22,7 +23,7 @@ class ReplayBuffer(object):
             'action': action,
             'reward': reward,
             'done': done,
-            'new_state': new_state
+            'state_next': new_state
         })
 
     def sample(self, batch_size):
@@ -36,8 +37,8 @@ class ReplayBuffer(object):
         - 'done_mask'
         '''
         num_samples = min(batch_size, len(self.samples))
-        # sample with replacement
-        batch_samples = random.choices(self.samples, num_samples)
+        # sample without replacement
+        batch_samples = random.sample(self.samples, k=num_samples)
 
         batch = {
             'states': np.stack(sample['state'] for sample in batch_samples),
