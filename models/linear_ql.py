@@ -4,7 +4,7 @@ import tensorflow as tf
 
 class LinearQL_Model(QL_Model):
 
-    def _get_q_values_op(self, scope):
+    def _get_q_values_op(self, states, scope):
         '''
         Args
         - state: tf.Tensor, shape [batch_size, state_dim]
@@ -13,11 +13,10 @@ class LinearQL_Model(QL_Model):
         Returns
         - q: tf.Tensor, shape [batch_size, num_actions]
         '''
-        # TODO: this is for you, Arthur!
-        h = self.placeholders['states']
-        num_actions = self.train_simulator.num_actions()
+        h = states
+        num_actions = self.train_simulator.get_num_actions()
         with tf.variable_scope(scope):
-            for width in widths:
+            for width in self.config.widths:
                 h = tf.layers.dense(h, width, activation=tf.nn.relu())
             q_values = tf.layers.dense(h, num_actions)
         return q_values
