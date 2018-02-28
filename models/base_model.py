@@ -73,7 +73,7 @@ class QL_Model(RL_Model):
         - q: tf.Tensor, shape [batch_size, num_actions], with any invalid actions having a q-value of -inf
         '''
         q_values = self._get_q_values_op(state, scope)
-        neg_inf = tf.constant(-np.inf, dtype=tf.float32, shape=q_values.shape)
+        neg_inf = tf.fill(tf.shape(q_values), tf.constant(-np.inf, dtype=tf.float32))
         q = tf.where(self.placeholders['valid_actions_mask'], q_values, neg_inf)
         return q
 
@@ -298,7 +298,7 @@ class QL_Model(RL_Model):
         self.target_q = self._get_q_values_wrapper(self.placeholders['states_next'], scope="target_q")
 
         # self.update_target_op
-        self._add_update_target_op()
+        self._add_update_target_op("q", "target_q")
 
         # self.loss
         self._add_loss_op()
@@ -321,11 +321,11 @@ class QL_Model(RL_Model):
         - self.summaries_test
         '''
         self.metrics_train = {
-            'rewards': deque(maxlen=self.config.num_episodes_test),
+            'rewards': deque(maxlen=self.config.test_num_episodes),
             'q_values': deque(maxlen=self.config.q_values_metrics_size)
         }
         self.metrics_test = {
-            'rewards': deque(maxlen=self.config.num_episodes_test),
+            'rewards': deque(maxlen=self.config.test_num_episodes),
             'q_values': deque(maxlen=self.config.q_values_metrics_size)
         }
         self.summary_placeholders = {
