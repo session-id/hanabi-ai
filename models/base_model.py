@@ -59,6 +59,9 @@ class QL_Model(RL_Model):
         # build the graph
         self.build()
 
+        init = tf.global_variables_initializer()
+        self.sess.run(init)
+
         self.saver = tf.train.Saver()
         self.summary_writer = tf.summary.FileWriter(config.log_dir, self.sess.graph)
 
@@ -98,7 +101,7 @@ class QL_Model(RL_Model):
         self.saver.save(self.sess, ckpt_prefix)
 
 
-    def get_action(self, state):
+    def get_action(self, state, valid_actions_mask):
         '''
         Performs epsilon-greedy action selection.
 
@@ -107,12 +110,14 @@ class QL_Model(RL_Model):
 
         Args
         - state: np.array, shape [state_dim]
+        - valid_actions_mask: np.array, shape [num_actions]
 
         Returns: (action, q_values)
         - action: int, index of the action to take
         - q_values: np.array, type float32, vector of Q-values for the given state
         '''
-        q_values = self.sess.run(self.q, feed_dict={self.placeholders['states']: [state]})[0]
+        q_values = self.sess.run(self.q, feed_dict={self.placeholders['states']: [state],
+                self.placeholders['valid_actions_mask']: [valid_actions_mask]})[0]
         if np.random.random() < self.config.soft_epsilon:
             valid_actions = list(self.train_simulator.get_valid_actions(state))
             random_action = np.random.choice(valid_actions)
@@ -132,9 +137,9 @@ class QL_Model(RL_Model):
 
         metrics_dict = self.metrics_train if split == 'train' else self.metrics_test
         if ep_reward is not None:
-            metrics_dict.append(ep_reward)
+            metrics_dict['rewards'].append(ep_reward)
         if q_values is not None:
-            metrics_dict['q_values'] += q_values
+            metrics_dict['q_values'].append(q_values)
 
 
     def train(self):
@@ -161,18 +166,20 @@ class QL_Model(RL_Model):
             while True:
                 start_time = time.time()
 
-                action, q_values = self.get_action(state)
-                new_state, reward, done = self.train_simulator.take_action(state, action)
-
+                features = self.train_simulator.get_state_vector(state)
                 valid_actions_mask = np.zeros(num_actions, dtype=bool)
                 valid_action_indices = list(self.train_simulator.get_valid_actions(state))
                 valid_actions_mask[valid_action_indices] = True
 
-                replay_buffer.store(step, state, valid_actions_mask, action, reward, done, new_state)
+                action, q_values = self.get_action(features, valid_actions_mask)
+                new_state, reward, done = self.train_simulator.take_action(state, action)
+
+                new_features = self.train_simulator.get_state_vector(state)
+                replay_buffer.store(step, features, valid_actions_mask, action, reward, done, new_features)
 
                 state = new_state
                 total_reward += reward
-                self.update_averages('train', reward=None, q_values=q_values)
+                self.update_averages('train', ep_reward=None, q_values=q_values)
 
                 if step > self.config.train_start:
                     if step % self.config.test_freq == 0:
@@ -192,7 +199,7 @@ class QL_Model(RL_Model):
                     break
 
             episode += 1
-            self.update_averages('train', reward=total_reward, q_values=None)
+            self.update_averages('train', ep_reward=total_reward, q_values=None)
 
         # evaluate again at the end of training
         test_avg_rewards.append(self.evaluate(step=step))
@@ -220,7 +227,7 @@ class QL_Model(RL_Model):
                 action, q_values = self.get_action(state)
                 state, reward, done = self.test_simulator.take_action(state, action)
                 if step is not None:
-                    self.update_averages('test', reward=None, q_values=q_values)
+                    self.update_averages('test', ep_reward=None, q_values=q_values)
                 total_reward += reward
                 if done:
                     break
@@ -229,7 +236,7 @@ class QL_Model(RL_Model):
             rewards[ep] = total_reward
 
             if step is not None:
-                self.update_averages('test', reward=total_reward, q_values=None)
+                self.update_averages('test', ep_reward=total_reward, q_values=None)
 
         avg_reward = np.mean(rewards)
         std_reward = np.std(rewards)
@@ -280,8 +287,8 @@ class QL_Model(RL_Model):
 
             # write the summary to TensorBoard
             summary_fd = {
-                self.summary_placeholders['rewards']: self.metrics['rewards'],
-                self.summary_placeholders['q_values']: self.metrics['q_values']
+                self.summary_placeholders['rewards']: self.metrics_train['rewards'],
+                self.summary_placeholders['q_values']: self.metrics_train['q_values']
             }
             train_summary_str = self.sess.run(self.summaries_train, feed_dict=summary_fd)
             self.summary_writer.add_summary(train_summary_str, step)

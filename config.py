@@ -44,6 +44,7 @@ class LinearQL_Config(object):
     widths = []           # widths if you want to do mlp stuff
 
     q_values_metrics_size = 1000
+    target_update_freq = 10
 
 
 class DeepQL_Config(object):
