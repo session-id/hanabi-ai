@@ -151,7 +151,7 @@ class QL_Model(RL_Model):
         test_avg_rewards = []
 
         # initialize replay buffer
-        replay_buffer = ReplayBuffer() # TODO
+        replay_buffer = ReplayBuffer(self.config.replay_buffer_size)
         num_actions = self.train_simulator.get_num_actions()
 
         episode = 0

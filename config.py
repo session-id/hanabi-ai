@@ -19,6 +19,7 @@ class QL_Config(object):
     batch_size = 20             # batch size
 
     q_values_metrics_size = 1000
+    replay_buffer_size = 100
 
 
 class LinearQL_Config(object):
@@ -45,6 +46,7 @@ class LinearQL_Config(object):
 
     q_values_metrics_size = 1000
     target_update_freq = 10
+    replay_buffer_size = 100
 
 
 class DeepQL_Config(object):
