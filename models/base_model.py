@@ -1,4 +1,5 @@
 import numpy as np
+import tensorflow as tf
 
 
 class RL_Model(object):
@@ -25,11 +26,92 @@ class QL_Model(RL_Model):
     '''
     Abstract Q-learning model.
 
-    Subclasses must implement the following methods:
-    - get_action()
-    - save()
-    - train_step()
+    Subclasses must implement the _get_q_values_op() method.
     '''
+
+    def __init__(self, inputs, config, train_simulator, test_simulator):
+        super(RL_Model, self).__init__(
+            inputs=inputs,
+            config=config,
+            train_simulator=train_simulator,
+            test_simulator=test_simulator
+        )
+
+        # create dirs for summaries + saved weights if needed
+        if not os.path.exists(config.log_dir):
+            os.makedirs(config.log_dir)
+        if not os.path.exists(config.ckpt_dir):
+            os.makedirs(config.ckpt_dir)
+
+        if config.gpu > 0:
+            os.environ['CUDA_VISIBLE_DEVICES'] = str(config.gpu)
+
+            sess_config = tf.ConfigProto()
+            sess_config.gpu_options.allow_growth = True
+            self.sess = tf.Session(config=sess_config)
+        else:
+            self.sess = tf.Session()
+
+        self.saver = tf.train.Saver()
+        self.summary_writer = tf.summary.FileWriter(config.log_dir, sess.graph)
+
+        # build the graph
+        self.build()
+
+
+    def _get_q_values_op(self, scope):
+        '''
+        Args
+        - scope: str, name of scope
+        '''
+        raise NotImplementedError
+
+
+    def save(self):
+        '''
+        Saves the weights of the current model to config.ckpt_dir with prefix 'ckpt'
+        '''
+        ckpt_prefix = os.path.join(self.config.ckpt_dir, 'ckpt')
+        self.saver.save(self.sess, ckpt_prefix)
+
+
+    def get_action(self, state):
+        '''
+        Performs epsilon-greedy action selection.
+
+        TODO: this currently uses config.soft_epsilon, but we should use a decreasing
+            epsilon over time.
+
+        Args
+        - state: np.array, vector of length simulator.state_dim
+
+        Returns: (action, q_values)
+        - action: int, index of the action to take
+        - q_values: np.array, type float32, vector of Q-values for the given state
+        '''
+        q_values = self.sess.run(self.q, feed_dict={self.placeholders['states']: [state]})[0]
+        if np.random.random() < self.config.soft_epsilon:
+            random_action = np.random.choice(self.train_simulator.num_actions)
+            return random_action, q_values
+        else:
+            return np.argmax(q_values), q_values
+
+
+    def update_averages(self, split, ep_reward=None, q_values=None):
+        '''
+        Args
+        - ep_reward: float, the total reward for an episode
+        - q_values: list of float, the q_values from a single step
+        '''
+        if split not in ['train', 'test']:
+            raise ValueError("unrecognized split")
+
+        metrics_dict = self.metrics_train if split == 'train' else self.metrics_test
+        if ep_reward is not None:
+            metrics_dict.append(ep_reward)
+        if q_values is not None:
+            metrics_dict['q_values'] += q_values
+
 
     def train(self):
         '''Train the model
@@ -54,15 +136,16 @@ class QL_Model(RL_Model):
             while True:
                 start_time = time.time()
 
-                action = self.get_action(state)
+                action, q_values = self.get_action(state)
                 new_state, reward, done = self.train_simulator.take_action(state, action)
                 replay_buffer.store(state, action, reward, done)
                 state = new_state
                 total_reward += reward
+                self.update_averages('train', reward=None, q_values=q_values)
 
                 if step > self.config.train_start:
                     if step % self.config.test_freq == 0:
-                        test_rewards = self.evaluate()
+                        test_rewards = self.evaluate(step=step)
                         test_avg_rewards.append(np.mean(test_rewards))
 
                     if step % self.config.print_freq == 0:
@@ -80,14 +163,19 @@ class QL_Model(RL_Model):
 
             episode += 1
             episode_rewards.append(total_reward)
+            self.update_averages('train', reward=total_reward, q_values=None)
 
         # evaluate again at the end of training
-        test_avg_rewards.append(self.evaluate())
+        test_avg_rewards.append(self.evaluate(step=step))
         return test_avg_rewards
 
 
-    def evaluate(self):
+    def evaluate(self, step=None):
         '''Evaluate model
+
+        Args
+        - step: int, current training step
+            or None to avoid saving summaries to TensorBoard
 
         Returns
         - rewards: list of float, rewards on config.test_num_episodes
@@ -100,8 +188,10 @@ class QL_Model(RL_Model):
             state = self.test_simulator.reset()
 
             while True:
-                action = self.get_action(state)
+                action, q_values = self.get_action(state)
                 state, reward, done = self.test_simulator.take_action(state, action)
+                if step is not None:
+                    self.update_averages('test', reward=None, q_values=q_values)
                 total_reward += reward
                 if done:
                     break
@@ -109,26 +199,173 @@ class QL_Model(RL_Model):
             # updates to perform at the end of an episode
             rewards[ep] = total_reward
 
+            if step is not None:
+                self.update_averages('test', reward=total_reward, q_values=None)
+
         avg_reward = np.mean(rewards)
         std_reward = np.std(rewards)
 
         msg = "Average reward: {:04.2f} +/- {:04.2f}".format(avg_reward, std_reward)
         print(msg)
+
+        if step is not None:
+            # write the summary to TensorBoard
+            summary_fd = {
+                self.summary_placeholders['rewards']: self.metrics_test['rewards'],
+                self.summary_placeholders['q_values']: self.metrics_test['q_values']
+            }
+            test_summary_str = self.sess.run(self.summaries_test, feed_dict=summary_fd)
+            self.summary_writer.add_summary(test_summary_str, step)
+            self.summary_writer.flush()
+
         return rewards
 
 
     def train_step(self, step, replay_buffer, return_stats=False):
         '''
-        Perform training step
+        Run a training step
 
         Args
-        - step: int, step of training
-        - replay_buffer: ReplayBuffer, buffer for sampling
-        - return_stats: bool, whether or not to calculate and return training statistics (e.g. loss)
+        - step: int
+        - replay_buffer: ReplayBuffer,
+        - return_stats: bool
 
         Returns
-        - if return_stats=False, then None
-        - otherwise:
-          - loss: float
+        - if return_stats=True, returns loss
+        - otherwise, does not return anything
         '''
-        raise NotImplementedError
+        batch = replay_buffer.sample(self.config.batch_size)
+
+        feed_dict = {
+            self.placeholders['states']:        batch['states'],
+            self.placeholders['actions']:       batch['actions'],
+            self.placeholders['rewards']:       batch['rewards'],
+            self.placeholders['states_next']:   batch['states_next'],
+            self.placeholders['done_mask']:     batch['done_mask'],
+            self.placeholders['lr']: self.config.lr
+        }
+
+        if return_stats:
+            _, loss  = self.sess.run([self.train_op, self.loss], feed_dict=feed_dict)
+            
+            # write the summary to TensorBoard
+            summary_fd = {
+                self.summary_placeholders['rewards']: self.metrics['rewards'],
+                self.summary_placeholders['q_values']: self.metrics['q_values']
+            }
+            train_summary_str = self.sess.run(self.summaries_train, feed_dict=summary_fd)
+            self.summary_writer.add_summary(train_summary_str, step)
+            self.summary_writer.flush()
+            return loss
+
+        else:
+            self.sess.run(self.train_op, feed_dict=feed_dict)
+
+    def build(self):
+        # self.placeholders: dict, {str => tf.placeholder}
+        self.add_placeholders()
+
+        # self.loss
+        self._add_loss_op()
+
+        # self.update_target_op
+        self._add_update_target_op()
+
+        # self.summary_placeholders, self.summaries_train, self.summaries_test
+        self._add_summaries()
+
+        # self.train_op
+        optimizer = tf.train.AdamOptimizer(learning_rate=self.placeholders['lr'])
+        self.train_op = optimizer.minimize(self.loss)
+
+
+    def _add_summaries(self):
+        '''
+        Creates summary ops. Defines 5 new properties on self:
+        - self.metrics_train
+        - self.metrics_test
+        - self.summary_placeholders
+        - self.summaries_train
+        - self.summaries_test
+        '''
+        self.metrics_train = {
+            'rewards': deque(maxlen=self.config.num_episodes_test),
+            'q_values': deque(maxlen=self.config.q_values_metrics_size)
+        }
+        self.metrics_test = {
+            'rewards': deque(maxlen=self.config.num_episodes_test),
+            'q_values': deque(maxlen=self.config.q_values_metrics_size)
+        }
+        self.summary_placeholders = {
+            'rewards': tf.placeholder(tf.float32, shape=[None], name='rewards'),
+            'q_values': tf.placeholder(tf.float32, shape=[None], name='q_values')
+        }
+
+        avg_reward, var_reward = tf.nn.moments(self.summary_placeholders['rewards'], axes=[0])
+        avg_q, var_q = tf.nn.moments(self.summary_placeholders['qs'], axes=[0])
+
+        summary_tensors = {
+            'avg_reward': avg_reward,
+            'max_reward': tf.reduce_max(self.summary_placeholders['rewards']),
+            'std_reward': tf.sqrt(var_reward),
+            'avg_q': avg_q,
+            'max_q': tf.reduce_max(self.summary_placeholders['q_values']),
+            'std_q': tf.sqrt(var_q)
+        }
+
+        with tf.variable_scope('train'):
+            self.summaries_train = tf.summary.merge([
+                tf.summary.scalar(name, summary_tensor)
+                for name, summary_tensor in summary_tensors.items()
+            ] + [tf.summary.scalar("loss", self.loss)])
+
+        with tf.variable_scope('test'):
+            self.summaries_test = tf.summary.merge([
+                tf.summary.scalar(name, summary_tensor)
+                for name, summary_tensor in summary_tensors.items()
+            ])
+
+
+    def _add_placeholders(self):
+        self.placeholders = {
+            'states'      = tf.placeholder(tf.float32, [None, self.train_simulator.state_dim]),
+            'actions'     = tf.placeholder(tf.int32,   [None]),
+            'rewards'     = tf.placeholder(tf.float32, [None]),
+            'states_next' = tf.placeholder(tf.float32, [None, self.train_simulator.state_dim]),
+            'done_mask'   = tf.placeholder(tf.bool,    [None]),
+            'lr'          = tf.placeholder(tf.float32, [])
+        }
+
+
+    def _add_loss_op(self):
+        '''
+        Sets self.loss to the loss operation defined as
+
+        Q_samp(s) = r if done
+                  = r + gamma * max_a' Q_target(s', a')
+        loss = (Q_samp(s) - Q(s, a))^2 
+        '''
+        not_done = 1 - tf.cast(self.placeholders['done_mask'], tf.float32)
+        q_target = self.placeholders['rewards'] + not_done * self.config.gamma * tf.reduce_max(self.target_q, axis=1)
+        action_indices = tf.one_hot(self.placeholders['actions'], self.train_simulator.num_actions)
+        q_est = tf.reduce_sum(self.q * action_indices, axis=1)
+        self.loss = tf.reduce_mean((q_target - q_est) ** 2)
+
+
+    def _add_update_target_op(self, q_scope, target_q_scope):
+        '''
+        Set self.update_target_op to copy the weights from the Q network to the
+        target Q network
+
+        Remember that in DQN, we maintain two identical Q networks with
+        2 different set of weights. In tensorflow, we distinguish them
+        with two different scopes.
+
+        Args
+        - q_scope: str, name of the variable scope for Q network we are training
+        - target_q_scope: str, name of the variable scope for the target Q network
+        '''
+        q_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=q_scope)
+        target_q_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=target_q_scope)
+        assign_ops = [tf.assign(target_v, v) for target_v, v in zip(target_q_vars, q_vars)]
+        self.update_target_op = tf.group(*assign_ops)
