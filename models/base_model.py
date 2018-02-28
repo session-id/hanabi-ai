@@ -63,10 +63,29 @@ class QL_Model(RL_Model):
         self.summary_writer = tf.summary.FileWriter(config.log_dir, self.sess.graph)
 
 
-    def _get_q_values_op(self, scope):
+    def _get_q_values_wrapper(self, state, scope):
         '''
         Args
+        - state: tf.Tensor, shape [batch_size, state_dim]
         - scope: str, name of scope
+
+        Returns
+        - q: tf.Tensor, shape [batch_size, num_actions], with any invalid actions having a q-value of -inf
+        '''
+        q_values = self._get_q_values_op(state, scope)
+        neg_inf = tf.constant(-np.inf, dtype=tf.float32, shape=q_values.shape)
+        q = tf.where(self.placeholders['valid_actions_mask'], q_values, neg_inf)
+        return q
+
+
+    def _get_q_values_op(self, state, scope):
+        '''
+        Args
+        - state: tf.Tensor, shape [batch_size, state_dim]
+        - scope: str, name of scope
+
+        Returns
+        - q: tf.Tensor, shape [batch_size, num_actions]
         '''
         raise NotImplementedError
 
@@ -87,7 +106,7 @@ class QL_Model(RL_Model):
             epsilon over time.
 
         Args
-        - state: np.array, vector of length simulator.state_dim
+        - state: np.array, shape [state_dim]
 
         Returns: (action, q_values)
         - action: int, index of the action to take
@@ -95,7 +114,8 @@ class QL_Model(RL_Model):
         '''
         q_values = self.sess.run(self.q, feed_dict={self.placeholders['states']: [state]})[0]
         if np.random.random() < self.config.soft_epsilon:
-            random_action = np.random.choice(self.train_simulator.get_num_actions())
+            valid_actions = list(self.train_simulator.get_valid_actions(state))
+            random_action = np.random.choice(valid_actions)
             return random_action, q_values
         else:
             return np.argmax(q_values), q_values
@@ -142,7 +162,7 @@ class QL_Model(RL_Model):
 
                 action, q_values = self.get_action(state)
                 new_state, reward, done = self.train_simulator.take_action(state, action)
-                replay_buffer.store(state, action, reward, done, new_state)
+                replay_buffer.store(step, state, action, reward, done, new_state)
                 state = new_state
                 total_reward += reward
                 self.update_averages('train', reward=None, q_values=q_values)
@@ -233,17 +253,18 @@ class QL_Model(RL_Model):
         - return_stats: bool
 
         Returns
-        - if return_stats=True, returns loss
+        - if return_stats=True, returns loss: float
         - otherwise, does not return anything
         '''
         batch = replay_buffer.sample(self.config.batch_size)
 
         feed_dict = {
-            self.placeholders['states']:        batch['states'],
-            self.placeholders['actions']:       batch['actions'],
-            self.placeholders['rewards']:       batch['rewards'],
-            self.placeholders['states_next']:   batch['states_next'],
-            self.placeholders['done_mask']:     batch['done_mask'],
+            self.placeholders['states']:             batch['states'],
+            self.placeholders['actions']:            batch['actions'],
+            self.placeholders['rewards']:            batch['rewards'],
+            self.placeholders['states_next']:        batch['states_next'],
+            self.placeholders['valid_actions_mask']: batch['valid_actions_mask'],
+            self.placeholders['done_mask']:          batch['done_mask'],
             self.placeholders['lr']: self.config.lr
         }
 
@@ -273,8 +294,8 @@ class QL_Model(RL_Model):
         self._add_placeholders()
 
         # compute Q values
-        self.q = self.get_q_values_op(self.placeholders['states'], scope="q")
-        self.target_q = self.get_q_values_op(self.placeholders['states_next'], scope="target_q")
+        self.q = self._get_q_values_wrapper(self.placeholders['states'], scope="q")
+        self.target_q = self._get_q_values_wrapper(self.placeholders['states_next'], scope="target_q")
 
         # self.update_target_op
         self._add_update_target_op()
@@ -338,11 +359,14 @@ class QL_Model(RL_Model):
 
 
     def _add_placeholders(self):
+        state_dim = self.train_simulator.get_state_vector_size()
+        num_actions = self.train_simulator.get_num_actions()
         self.placeholders = {
-            'states'      : tf.placeholder(tf.float32, shape=[None, self.train_simulator.get_state_vector_size()]),
+            'states'      : tf.placeholder(tf.float32, shape=[None, state_dim]),
             'actions'     : tf.placeholder(tf.int32,   shape=[None]),
             'rewards'     : tf.placeholder(tf.float32, shape=[None]),
-            'states_next' : tf.placeholder(tf.float32, shape=[None, self.train_simulator.get_state_vector_size()]),
+            'states_next' : tf.placeholder(tf.float32, shape=[None, state_dim]),
+            'valid_actions_mask' : tf.placeholder(tf.bool, shape=[None, num_actions]),
             'done_mask'   : tf.placeholder(tf.bool,    shape=[None]),
             'lr'          : tf.placeholder(tf.float32, shape=[])
         }
