@@ -162,7 +162,7 @@ class QL_Model(RL_Model):
 
                 action, q_values = self.get_action(state)
                 new_state, reward, done = self.train_simulator.take_action(state, action)
-                replay_buffer.store(state, action, reward, done)
+                replay_buffer.store(step, state, action, reward, done, new_state)
                 state = new_state
                 total_reward += reward
                 self.update_averages('train', reward=None, q_values=q_values)
@@ -259,12 +259,12 @@ class QL_Model(RL_Model):
         batch = replay_buffer.sample(self.config.batch_size)
 
         feed_dict = {
-            self.placeholders['states']:      batch['states'],
-            self.placeholders['actions']:     batch['actions'],
-            self.placeholders['rewards']:     batch['rewards'],
-            self.placeholders['states_next']: batch['states_next'],
+            self.placeholders['states']:             batch['states'],
+            self.placeholders['actions']:            batch['actions'],
+            self.placeholders['rewards']:            batch['rewards'],
+            self.placeholders['states_next']:        batch['states_next'],
             self.placeholders['valid_actions_mask']: batch['valid_actions_mask'],
-            self.placeholders['done_mask']:   batch['done_mask'],
+            self.placeholders['done_mask']:          batch['done_mask'],
             self.placeholders['lr']: self.config.lr
         }
 
