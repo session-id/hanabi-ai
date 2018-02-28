@@ -1,11 +1,12 @@
 import random
 from collections import deque
+import numpy as np
 
 class ReplayBuffer(object):
     def __init__(self, buffer_size):
         self.samples = deque(maxlen=buffer_size)
 
-    def store(step, state, valid_actions_mask, action, reward, done, new_state):
+    def store(self, step, state, valid_actions_mask, action, reward, done, new_state):
         '''
         Args
         - step: int
