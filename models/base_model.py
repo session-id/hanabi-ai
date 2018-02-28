@@ -1,4 +1,5 @@
-from replay_buffer import ReplayBuffer
+from models.replay_buffer import ReplayBuffer
+
 import os
 import time
 from collections import deque
