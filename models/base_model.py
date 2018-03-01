@@ -236,6 +236,8 @@ class QL_Model(RL_Model):
             state = self.test_simulator.get_start_state()
 
             while True:
+                if ep < self.config.num_test_to_print:
+                    state.print_self()
                 features = self.train_simulator.get_state_vector(state)
                 valid_actions_mask = np.zeros(num_actions, dtype=bool)
                 valid_action_indices = list(self.test_simulator.get_valid_actions(state))
@@ -244,7 +246,6 @@ class QL_Model(RL_Model):
                 action, q_values = self.get_action(features, valid_actions_mask)
                 state, reward, done = self.test_simulator.take_action(state, action)
                 if ep < self.config.num_test_to_print:
-                    state.print_self()
                     print(self.test_simulator.get_action_names(state)[action])
                 if step is not None:
                     self.update_averages('test', ep_reward=None, q_values=q_values)
