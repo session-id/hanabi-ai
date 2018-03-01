@@ -356,9 +356,9 @@ class RegularHanabiGameEasyFeatures(object):
     for other_player_num in range(1, self.num_players):
       player_id = (state.cur_player + other_player_num) % self.num_players
       # TODO: the one hot encoding for number + color + None has one degree of linear redundancy
+      if len(state.player_hands[player_id]) == self.cards_per_player - 1:
+          all_vectors.append([0] * (self.num_colors + self.max_number + 5))
       for hinted_card in state.player_hands[player_id]:
-        if hinted_card is None:
-          card_vector = [0] * (self.num_colors + self.max_number + 5)
         if hinted_card is not None:
           number_vector = [0] * self.max_number
           number_vector[hinted_card.number - 1] = 1
@@ -443,6 +443,9 @@ class RegularHanabiGameEasyFeatures(object):
     all_vectors.append(exhausted)
 
     feature_vector = np.array([item for sublist in all_vectors for item in sublist])
+
+    if len(feature_vector) != self.get_state_vector_size():
+        raise RuntimeError("Feature vector length is incorrect: {}, supposed to be {}".format(len(feature_vector), self.get_state_vector_size()))
 
     return feature_vector
 
