@@ -186,7 +186,6 @@ class HanabiState(object):
     self.played_numbers = {color: 0 for color in self.colors}
     self.hint_tokens = self.max_hint_tokens
     self.bomb_tokens = self.starting_bomb_tokens
-    self.turn_no = 0
     self.turns_until_end = self.num_players
 
   def add_hint_token(self):
@@ -194,6 +193,10 @@ class HanabiState(object):
 
   def advance_player(self):
     self.cur_player = (self.cur_player + 1) % self.num_players
+
+  def print_self(self):
+    print("Player {}, Hint {}, Bomb {}, Cards left {}".format(self.cur_player, self.hint_tokens, self.bomb_tokens, len(self.deck)))
+    print(self.player_hands)
 
 class RegularHanabiGameEasyFeatures(object):
   '''

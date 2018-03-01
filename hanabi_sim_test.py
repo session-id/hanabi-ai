@@ -28,7 +28,7 @@ def print_action_display(state):
   for action in valid_actions:
     print("{:2}, {}".format(action, action_names[action]))
 
-game = hs.RegularHanabiGameEasyFeatures(3)
+game = hs.RegularHanabiGameEasyFeatures(2)
 state = game.get_start_state()
 # assert len(game.get_state_vector(state)) == game.get_state_vector_size()
 # for i in range(3):

@@ -198,7 +198,7 @@ class QL_Model(RL_Model):
                     if step % self.config.print_freq == 0:
                         loss = self.train_step(step, replay_buffer, return_stats=True)
                         duration = time.time() - start_time
-                        print('Step {:05d}. Episode {:02d}. loss: {:0.4f}, time: {:0.3f}s'.format(
+                        print('Step {:6d}. Episode {:4d}. loss: {:0.4f}, time: {:0.3f}s'.format(
                             step, episode, loss, duration))
                     else:
                         self.train_step(step, replay_buffer, return_stats=False)
@@ -230,17 +230,22 @@ class QL_Model(RL_Model):
         rewards = np.zeros(num_episodes, dtype=np.float64)
 
         for ep in range(self.config.test_num_episodes):
+            if self.config.verbose:
+                print("\nTest episode: {}".format(ep))
             total_reward = 0
             state = self.test_simulator.get_start_state()
 
             while True:
                 features = self.train_simulator.get_state_vector(state)
                 valid_actions_mask = np.zeros(num_actions, dtype=bool)
-                valid_action_indices = list(self.train_simulator.get_valid_actions(state))
+                valid_action_indices = list(self.test_simulator.get_valid_actions(state))
                 valid_actions_mask[valid_action_indices] = True
 
                 action, q_values = self.get_action(features, valid_actions_mask)
                 state, reward, done = self.test_simulator.take_action(state, action)
+                if self.config.verbose:
+                    state.print_self()
+                    print(self.test_simulator.get_action_names(state)[action])
                 if step is not None:
                     self.update_averages('test', ep_reward=None, q_values=q_values)
                 total_reward += reward
