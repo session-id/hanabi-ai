@@ -64,6 +64,9 @@ class QL_Model(RL_Model):
         init = tf.global_variables_initializer()
         self.sess.run(init)
 
+        # Synchronize networks
+        self.sess.run(self.update_target_op)
+
         self.saver = tf.train.Saver()
         self.summary_writer = tf.summary.FileWriter(config.log_dir, self.sess.graph)
 
