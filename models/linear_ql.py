@@ -17,6 +17,6 @@ class LinearQL_Model(QL_Model):
         num_actions = self.train_simulator.get_num_actions()
         with tf.variable_scope(scope):
             for width in self.config.widths:
-                h = tf.layers.dense(h, width, activation=tf.nn.relu())
+                h = tf.layers.dense(h, width, activation=tf.nn.relu)
             q_values = tf.layers.dense(h, num_actions)
         return q_values
