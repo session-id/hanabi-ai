@@ -52,6 +52,8 @@ class LinearQL_Config(object):
     eps_nsteps = train_num_steps/2
     test_epsilon = 0.01         # epsilon for test-time exploration (0 for always choosing the best action)
 
+    num_test_to_print = 1       # number of test trajectories to print. set to 0 to never print
+
 
 class DeepQL_Config(object):
     train_num_steps = 50000       # number of steps for training
