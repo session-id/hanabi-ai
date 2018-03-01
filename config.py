@@ -74,4 +74,4 @@ class DeepQL_Config(object):
     target_update_freq = 1000
     replay_buffer_size = 100
 
-    verbose = True
+    num_test_to_print = 1       # number of test trajectories to print. set to 0 to never print

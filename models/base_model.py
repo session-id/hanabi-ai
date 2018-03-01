@@ -230,7 +230,7 @@ class QL_Model(RL_Model):
         rewards = np.zeros(num_episodes, dtype=np.float64)
 
         for ep in range(self.config.test_num_episodes):
-            if self.config.verbose:
+            if ep < self.config.num_test_to_print:
                 print("\nTest episode: {}".format(ep))
             total_reward = 0
             state = self.test_simulator.get_start_state()
@@ -243,7 +243,7 @@ class QL_Model(RL_Model):
 
                 action, q_values = self.get_action(features, valid_actions_mask)
                 state, reward, done = self.test_simulator.take_action(state, action)
-                if self.config.verbose:
+                if ep < self.config.num_test_to_print:
                     state.print_self()
                     print(self.test_simulator.get_action_names(state)[action])
                 if step is not None:
@@ -257,6 +257,9 @@ class QL_Model(RL_Model):
 
             if step is not None:
                 self.update_averages('test', ep_reward=total_reward, q_values=None)
+
+        if self.config.num_test_to_print > 0:
+            print("")
 
         avg_reward = np.mean(rewards)
         std_reward = np.std(rewards)
