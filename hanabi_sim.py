@@ -153,6 +153,16 @@ class HanabiState(object):
 
   def __init__(self, num_players, cards_per_player, colors, max_number, number_counts,
       max_hint_tokens, starting_bomb_tokens):
+    '''
+    Args
+    - num_players: int
+    - cards_per_player: int
+    - colors: list of str
+    - max_number: int
+    - number_counts: int
+    - max_hint_tokens: int
+    - starting_bomb_tokens: int
+    '''
     self.num_players = num_players
     self.cards_per_player = cards_per_player
     self.max_hint_tokens = max_hint_tokens
@@ -196,7 +206,8 @@ class HanabiState(object):
 
   def print_self(self):
     print("Player {}, Hint {}, Bomb {}, Cards left {}".format(self.cur_player, self.hint_tokens, self.bomb_tokens, len(self.deck)))
-    print(self.player_hands)
+    print("\t{ " + ", ".join(colored(self.played_numbers[color], COLOR_TO_TERM[color]) for color in self.colors) + " }")
+    print("\t{}".format(self.player_hands))
 
 class RegularHanabiGameEasyFeatures(object):
   '''
@@ -227,7 +238,7 @@ class RegularHanabiGameEasyFeatures(object):
       action_names.append("Play slot {}".format(i))
     # Discard own cards
     for i in range(self.cards_per_player):
-      action_names.append("Play slot {}".format(i))
+      action_names.append("Discard slot {}".format(i))
     # Give hints
     for other_player_num in range(1, self.num_players):
       player_id = (state.cur_player + other_player_num) % self.num_players
@@ -268,6 +279,11 @@ class RegularHanabiGameEasyFeatures(object):
     return 2 * self.cards_per_player + (self.num_players - 1) * (self.num_colors + self.max_number)
 
   def take_action(self, state, action):
+    '''
+    Args
+    - state: HanabiState
+    - action: int
+    '''
     done = False
     reward = 0
 
