@@ -8,8 +8,7 @@ from models.replay_buffer import ReplayBuffer
 
 
 class RL_Model(object):
-    def __init__(self, inputs, config, train_simulator, test_simulator):
-        self.inputs = inputs
+    def __init__(self, config, train_simulator, test_simulator):
         self.config = config
         self.train_simulator = train_simulator
         self.test_simulator = test_simulator
@@ -34,9 +33,15 @@ class QL_Model(RL_Model):
     Subclasses must implement the _get_q_values_op() method.
     '''
 
-    def __init__(self, inputs, config, train_simulator, test_simulator):
+    def __init__(self, config, train_simulator, test_simulator, eps_decay):
+        '''
+        Args
+        - config
+        - train_simulator
+        - test_simulator
+        - eps_decay: function that takes a time step and returns an epsilon value
+        '''
         super(QL_Model, self).__init__(
-            inputs=inputs,
             config=config,
             train_simulator=train_simulator,
             test_simulator=test_simulator
@@ -69,6 +74,9 @@ class QL_Model(RL_Model):
 
         self.saver = tf.train.Saver()
         self.summary_writer = tf.summary.FileWriter(config.log_dir, self.sess.graph)
+
+        # set the epsilon
+        self.eps_decay = eps_decay
 
 
     def _get_q_values_wrapper(self, state, scope):
@@ -110,24 +118,25 @@ class QL_Model(RL_Model):
         self.saver.save(self.sess, ckpt_prefix)
 
 
-    def get_action(self, state, valid_actions_mask):
+    def get_action(self, state, valid_actions_mask, epsilon=0):
         '''
         Performs epsilon-greedy action selection.
-
-        TODO: this currently uses config.soft_epsilon, but we should use a decreasing
-            epsilon over time.
 
         Args
         - state: np.array, shape [state_dim]
         - valid_actions_mask: np.array, shape [num_actions]
+        - epsilon: float in [0, 1], probability of selecting a random action
+            - set to 0 to always choose the best action
 
         Returns: (action, q_values)
         - action: int, index of the action to take
         - q_values: np.array, type float32, vector of Q-values for the given state
         '''
-        q_values = self.sess.run(self.q, feed_dict={self.placeholders['states']: [state],
-                self.placeholders['valid_actions_mask']: [valid_actions_mask]})[0]
-        if np.random.random() < self.config.soft_epsilon:
+        q_values = self.sess.run(self.q, feed_dict={
+            self.placeholders['states']: [state],
+            self.placeholders['valid_actions_mask']: [valid_actions_mask]
+        })[0]
+        if np.random.random() < epsilon:
             valid_actions = np.where(valid_actions_mask == True)[0] 
             random_action = np.random.choice(valid_actions)
             return random_action, q_values
@@ -174,13 +183,14 @@ class QL_Model(RL_Model):
             # train multiple episodes
             while True:
                 start_time = time.time()
+                epsilon = self.eps_decay(step)
 
                 features = self.train_simulator.get_state_vector(state)
                 valid_actions_mask = np.zeros(num_actions, dtype=bool)
                 valid_action_indices = list(self.train_simulator.get_valid_actions(state))
                 valid_actions_mask[valid_action_indices] = True
 
-                action, q_values = self.get_action(features, valid_actions_mask)
+                action, q_values = self.get_action(features, valid_actions_mask, epsilon=epsilon)
                 new_state, reward, done = self.train_simulator.take_action(state, action)
 
                 new_features = self.train_simulator.get_state_vector(new_state)
@@ -243,7 +253,7 @@ class QL_Model(RL_Model):
                 valid_action_indices = list(self.test_simulator.get_valid_actions(state))
                 valid_actions_mask[valid_action_indices] = True
 
-                action, q_values = self.get_action(features, valid_actions_mask)
+                action, q_values = self.get_action(features, valid_actions_mask, epsilon=self.config.test_epsilon)
                 state, reward, done = self.test_simulator.take_action(state, action)
                 if ep < self.config.num_test_to_print:
                     print(self.test_simulator.get_action_names(state)[action])

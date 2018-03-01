@@ -48,6 +48,10 @@ class LinearQL_Config(object):
     target_update_freq = 100
     replay_buffer_size = 100
 
+    eps_begin  = 1
+    eps_end    = 0.01
+    eps_nsteps = train_num_steps/2
+
 
 class DeepQL_Config(object):
     train_num_steps = 50000       # number of steps for training
@@ -73,5 +77,9 @@ class DeepQL_Config(object):
     q_values_metrics_size = 1000
     target_update_freq = 1000
     replay_buffer_size = 100
+
+    eps_begin  = 1
+    eps_end    = 0.01
+    eps_nsteps = train_num_steps/2
 
     num_test_to_print = 1       # number of test trajectories to print. set to 0 to never print

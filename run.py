@@ -16,6 +16,14 @@ if __name__=='__main__':
     config = DeepQL_Config()
     train_simulator = hs.RegularHanabiGameEasyFeatures(2)
     test_simulator = hs.RegularHanabiGameEasyFeatures(2)
-    # model = LinearQL_Model(None, config, train_simulator, test_simulator)
-    model = DQL_Model(None, config, train_simulator, test_simulator)
+    # model = LinearQL_Model(config, train_simulator, test_simulator)
+
+    def eps_decay(step):
+        if step >= config.eps_nsteps:
+            return config.eps_end
+        else:
+            eps_increment = float(config.eps_begin - config.eps_end) / config.eps_nsteps
+            return config.eps_begin - step * eps_increment
+
+    model = DQL_Model(config, train_simulator, test_simulator, eps_decay)
     model.train()
