@@ -79,7 +79,11 @@ class QL_Model(RL_Model):
         '''
         q_values = self._get_q_values_op(state, scope)
         neg_inf = tf.fill(tf.shape(q_values), tf.constant(-np.inf, dtype=tf.float32))
-        q = tf.where(self.placeholders['valid_actions_mask'], q_values, neg_inf)
+        # q = tf.where(self.placeholders['valid_actions_mask'], x=q_values, y=neg_inf)
+        x = tf.cast(tf.logical_not(self.placeholders['valid_actions_mask']), tf.float32) * -10 ** 10
+        # x = tf.where(tf.is_nan(x), tf.ones_like(x) * 0, x)
+        q = x + q_values
+        # q = tf.Print(q, [q, neg_inf, self.placeholders['valid_actions_mask'], x], summarize=100, message='Q, neg_inf, mask:')
         return q
 
 

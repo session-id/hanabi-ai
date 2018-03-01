@@ -23,7 +23,7 @@ class QL_Config(object):
 
 
 class LinearQL_Config(object):
-    train_num_steps = 200       # number of steps for training
+    train_num_steps = 2000      # number of steps for training
     train_start = 0             # how many steps of observation before beginning training
     print_freq = 5              # how often to print loss and other training statistics (training steps)
 
