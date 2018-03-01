@@ -83,18 +83,20 @@ class QL_Model(RL_Model):
         '''
         Args
         - state: tf.Tensor, shape [batch_size, state_dim]
-        - scope: str, name of scope
+        - scope: str, name of scope, one of ['q', 'target_q']
 
         Returns
-        - q: tf.Tensor, shape [batch_size, num_actions], with any invalid actions having a q-value of -inf
+        - q: tf.Tensor, shape [batch_size, num_actions], with any invalid actions having a large negative q-value
         '''
+        assert scope in ['q', 'target_q']
+        if scope == 'q':
+            mask = self.placeholders['valid_actions_mask']
+        else:
+            mask = self.placeholders['valid_actions_next_mask']
+
+        neg_inf = tf.constant(-10**10, dtype=tf.float32, shape=q_values.shape)
         q_values = self._get_q_values_op(state, scope)
-        neg_inf = tf.fill(tf.shape(q_values), tf.constant(-np.inf, dtype=tf.float32))
-        # q = tf.where(self.placeholders['valid_actions_mask'], x=q_values, y=neg_inf)
-        x = tf.cast(tf.logical_not(self.placeholders['valid_actions_mask']), tf.float32) * -10 ** 10
-        # x = tf.where(tf.is_nan(x), tf.ones_like(x) * 0, x)
-        q = x + q_values
-        # q = tf.Print(q, [q, neg_inf, self.placeholders['valid_actions_mask'], x], summarize=100, message='Q, neg_inf, mask:')
+        q = tf.where(mask, x=q_values, y=neg_inf)
         return q
 
 
@@ -137,7 +139,7 @@ class QL_Model(RL_Model):
             self.placeholders['valid_actions_mask']: [valid_actions_mask]
         })[0]
         if np.random.random() < epsilon:
-            valid_actions = np.where(valid_actions_mask == True)[0] 
+            valid_actions = np.where(valid_actions_mask == True)[0]
             random_action = np.random.choice(valid_actions)
             return random_action, q_values
         else:
@@ -193,8 +195,12 @@ class QL_Model(RL_Model):
                 action, q_values = self.get_action(features, valid_actions_mask, epsilon=epsilon)
                 new_state, reward, done = self.train_simulator.take_action(state, action)
 
+                valid_actions_next_mask = np.zeros(num_actions, dtype=bool)
+                valid_action_indices = list(self.train_simulator.get_valid_actions(new_state))
+                valid_actions_next_mask[valid_action_indices] = True
+
                 new_features = self.train_simulator.get_state_vector(new_state)
-                replay_buffer.store(step, features, valid_actions_mask, action, reward, done, new_features)
+                replay_buffer.store(step, features, valid_actions_mask, action, reward, done, new_features, valid_actions_next_mask)
 
                 state = new_state
                 total_reward += reward
@@ -312,6 +318,7 @@ class QL_Model(RL_Model):
             self.placeholders['rewards']:            batch['rewards'],
             self.placeholders['states_next']:        batch['states_next'],
             self.placeholders['valid_actions_mask']: batch['valid_actions_mask'],
+            self.placeholders['valid_actions_next_mask']: batch['valid_actions_next_mask'],
             self.placeholders['done_mask']:          batch['done_mask'],
             self.placeholders['lr']: self.config.lr
         }
@@ -417,12 +424,13 @@ class QL_Model(RL_Model):
             'states'      : tf.placeholder(tf.float32, shape=[None, state_dim]),
             'actions'     : tf.placeholder(tf.int32,   shape=[None]),
             'rewards'     : tf.placeholder(tf.float32, shape=[None]),
-            'states_next' : tf.placeholder(tf.float32, shape=[None, state_dim]),
+            'states' : tf.placeholder(tf.float32, shape=[None, state_dim]),
             'lr'          : tf.placeholder(tf.float32, shape=[]),
             'done_mask'   : tf.placeholder(tf.bool,    shape=[None]),
 
             # boolean mask of valid actions given the current batch of states
-            'valid_actions_mask' : tf.placeholder(tf.bool, shape=[None, num_actions])
+            'valid_actions_mask' : tf.placeholder(tf.bool, shape=[None, num_actions]),
+            'valid_actions_next_mask' : tf.placeholder(tf.bool, shape=[None, num_actions])
         }
 
 
@@ -438,9 +446,7 @@ class QL_Model(RL_Model):
         q_target = self.placeholders['rewards'] + not_done * self.config.gamma * tf.reduce_max(self.target_q, axis=1)
         action_indices = tf.one_hot(self.placeholders['actions'], self.train_simulator.get_num_actions())
         q_est = tf.reduce_sum(self.q * action_indices, axis=1)
-
-        valid_actions = tf.cast(self.placeholders['valid_actions_mask'], tf.float32)
-        self.loss = tf.reduce_mean(valid_actions * (q_target - q_est) ** 2)
+        self.loss = tf.reduce_mean((q_target - q_est) ** 2)
 
 
     def _add_update_target_op(self, q_scope, target_q_scope):

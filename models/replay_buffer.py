@@ -6,7 +6,7 @@ class ReplayBuffer(object):
         self.max_buffer_size = buffer_size
         self.samples = []
 
-    def store(self, step, state, valid_actions_mask, action, reward, done, new_state):
+    def store(self, step, state, valid_actions_mask, action, reward, done, new_state, valid_actions_next_mask):
         '''
         Args
         - step: int
@@ -26,7 +26,8 @@ class ReplayBuffer(object):
             'action': action,
             'reward': reward,
             'done': done,
-            'state_next': new_state
+            'state_next': new_state,
+            'valid_actions_next_mask': valid_actions_mask,
         })
 
     def sample(self, batch_size):
@@ -48,7 +49,8 @@ class ReplayBuffer(object):
             'valid_actions_mask': np.stack([sample['valid_actions_mask'] for sample in batch_samples]),
             'actions': np.array([sample['action'] for sample in batch_samples]),
             'rewards': np.array([sample['reward'] for sample in batch_samples]),
-            'states_next': np.stack([sample['state_next'] for sample in batch_samples]),
             'done_mask': np.array([sample['done'] for sample in batch_samples])
+            'states_next': np.stack([sample['state_next'] for sample in batch_samples]),
+            'valid_actions_next_mask': np.stack([sample['valid_actions_next_mask'] for sample in batch_samples]),
         }
         return batch
