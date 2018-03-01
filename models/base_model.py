@@ -1,9 +1,10 @@
-from models.replay_buffer import ReplayBuffer
 import os
 import time
 from collections import deque
 import numpy as np
 import tensorflow as tf
+
+from models.replay_buffer import ReplayBuffer
 
 
 class RL_Model(object):

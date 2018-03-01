@@ -1,10 +1,10 @@
-from collections import deque
 import numpy as np
 import random
 
 class ReplayBuffer(object):
     def __init__(self, buffer_size):
-        self.samples = deque(maxlen=buffer_size)
+        self.max_buffer_size = buffer_size
+        self.samples = []
 
     def store(self, step, state, valid_actions_mask, action, reward, done, new_state):
         '''
@@ -17,6 +17,9 @@ class ReplayBuffer(object):
         - done: bool
         - new_state: np.array, shape [state_dim]
         '''
+        if len(self.samples) >= self.max_buffer_size:
+            self.samples = self.samples[1:]
+
         self.samples.append({
             'state': state,
             'valid_actions_mask': valid_actions_mask,
