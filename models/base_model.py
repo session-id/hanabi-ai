@@ -94,8 +94,8 @@ class QL_Model(RL_Model):
         else:
             mask = self.placeholders['valid_actions_next_mask']
 
-        neg_inf = tf.constant(-10**10, dtype=tf.float32, shape=q_values.shape)
         q_values = self._get_q_values_op(state, scope)
+        neg_inf = tf.fill(tf.shape(q_values), -10.0**10)
         q = tf.where(mask, x=q_values, y=neg_inf)
         return q
 
@@ -214,8 +214,8 @@ class QL_Model(RL_Model):
                     if step % self.config.print_freq == 0:
                         loss = self.train_step(step, replay_buffer, return_stats=True)
                         duration = time.time() - start_time
-                        print('Step {:6d}. Episode {:4d}. loss: {:0.4f}, time: {:0.3f}s'.format(
-                            step, episode, loss, duration))
+                        print('step {:6d}, episode {:4d}, epsilon: {:0.4f}, loss: {:0.4f}, time: {:0.3f}s'.format(
+                            step, episode, epsilon, loss, duration))
                     else:
                         self.train_step(step, replay_buffer, return_stats=False)
 
@@ -424,7 +424,7 @@ class QL_Model(RL_Model):
             'states'      : tf.placeholder(tf.float32, shape=[None, state_dim]),
             'actions'     : tf.placeholder(tf.int32,   shape=[None]),
             'rewards'     : tf.placeholder(tf.float32, shape=[None]),
-            'states' : tf.placeholder(tf.float32, shape=[None, state_dim]),
+            'states_next' : tf.placeholder(tf.float32, shape=[None, state_dim]),
             'lr'          : tf.placeholder(tf.float32, shape=[]),
             'done_mask'   : tf.placeholder(tf.bool,    shape=[None]),
 
