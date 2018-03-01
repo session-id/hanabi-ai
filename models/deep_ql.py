@@ -13,5 +13,12 @@ class DQL_Model(QL_Model):
         Returns
         - q: tf.Tensor, shape [batch_size, num_actions]
         '''
-        # TODO: this is for you, Arthur!
-        raise NotImplementedError
+
+        # Just an MLP model for now
+        h = states
+        num_actions = self.train_simulator.get_num_actions()
+        with tf.variable_scope(scope):
+            for width in self.config.widths:
+                h = tf.layers.dense(h, width, activation=tf.nn.relu())
+            q_values = tf.layers.dense(h, num_actions)
+        return q_values

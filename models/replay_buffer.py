@@ -40,17 +40,15 @@ class ReplayBuffer(object):
         - 'done_mask'
         '''
         num_samples = min(batch_size, len(self.samples))
-        batch_idx = random.sample(range(len(self.samples)), num_samples)
-        batch_samples = []
-        for i in batch_idx:
-            batch_samples.append(self.samples[i])
+        # sample without replacement
+        batch_samples = random.sample(self.samples, k=num_samples)
 
         batch = {
-            'states': np.stack(sample['state'] for sample in batch_samples),
-            'valid_actions_mask': np.stack(sample['valid_actions_mask'] for sample in batch_samples),
+            'states': np.stack([sample['state'] for sample in batch_samples]),
+            'valid_actions_mask': np.stack([sample['valid_actions_mask'] for sample in batch_samples]),
             'actions': np.array([sample['action'] for sample in batch_samples]),
             'rewards': np.array([sample['reward'] for sample in batch_samples]),
-            'states_next': np.stack(sample['state_next'] for sample in batch_samples),
+            'states_next': np.stack([sample['state_next'] for sample in batch_samples]),
             'done_mask': np.array([sample['done'] for sample in batch_samples])
         }
         return batch
