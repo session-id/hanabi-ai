@@ -1,4 +1,4 @@
-logs
+*logs
 *.swp
 .env
 .env2
