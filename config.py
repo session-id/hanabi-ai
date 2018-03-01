@@ -14,7 +14,6 @@ class QL_Config(object):
 
     gamma = 0.9                 # discount factor
     lr = 0.01                   # learning rate
-    soft_epsilon = 0.01         # epsilon for e-greedy exploration
     
     batch_size = 20             # batch size
 
@@ -51,6 +50,7 @@ class LinearQL_Config(object):
     eps_begin  = 1
     eps_end    = 0.01
     eps_nsteps = train_num_steps/2
+    test_epsilon = 0.01         # epsilon for test-time exploration (0 for always choosing the best action)
 
 
 class DeepQL_Config(object):
@@ -68,7 +68,6 @@ class DeepQL_Config(object):
 
     gamma = 0.99                 # discount factor
     lr = 0.01                   # learning rate
-    soft_epsilon = 0.01         # epsilon for e-greedy exploration
     
     batch_size = 20             # batch size
 
@@ -81,5 +80,6 @@ class DeepQL_Config(object):
     eps_begin  = 1
     eps_end    = 0.01
     eps_nsteps = train_num_steps/2
+    test_epsilon = 0.01         # epsilon for test-time exploration (0 for always choosing the best action)
 
     num_test_to_print = 1       # number of test trajectories to print. set to 0 to never print
