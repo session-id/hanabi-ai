@@ -1,7 +1,7 @@
 class QL_Config(object):
     train_num_steps = 200       # number of steps for training
     train_start = 0             # how many steps of observation before beginning training
-    print_freq = 5              # how often to print loss and other training statistics (training steps)
+    print_freq = 50             # how often to print loss and other training statistics (training steps)
 
     test_freq = 100             # how often to evaluate model (training steps)
     test_num_episodes = 30      # how many episodes to test for
@@ -24,7 +24,7 @@ class QL_Config(object):
 class LinearQL_Config(object):
     train_num_steps = 20000     # number of steps for training
     train_start = 0             # how many steps of observation before beginning training
-    print_freq = 5              # how often to print loss and other training statistics (training steps)
+    print_freq = 50             # how often to print loss and other training statistics (training steps)
 
     test_freq = 100             # how often to evaluate model (training steps)
     test_num_episodes = 30      # how many episodes to test for
@@ -35,11 +35,11 @@ class LinearQL_Config(object):
     log_dir = 'logs/'           # path to directory for TensorBoard summaries
     ckpt_dir = 'ckpts/'         # path to directory for checkpoints
 
-    gamma = 1                   # discount factor
+    gamma = 0.99                # discount factor
     lr = 0.01                   # learning rate
     soft_epsilon = 0.01         # epsilon for e-greedy exploration
     
-    batch_size = 20             # batch size
+    batch_size = 50             # batch size
 
     widths = [30, 30]           # widths if you want to do mlp stuff
 

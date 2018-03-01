@@ -12,11 +12,10 @@ if __name__=='__main__':
     np.random.seed(1339)
     random.seed(1340)
     tf.set_random_seed(1341)
-    # config = LinearQL_Config()
-    config = DeepQL_Config()
+    config = LinearQL_Config()
+    # config = DeepQL_Config()
     train_simulator = hs.RegularHanabiGameEasyFeatures(2)
     test_simulator = hs.RegularHanabiGameEasyFeatures(2)
-    # model = LinearQL_Model(config, train_simulator, test_simulator)
 
     def eps_decay(step):
         if step >= config.eps_nsteps:
@@ -25,5 +24,6 @@ if __name__=='__main__':
             eps_increment = float(config.eps_begin - config.eps_end) / config.eps_nsteps
             return config.eps_begin - step * eps_increment
 
-    model = DQL_Model(config, train_simulator, test_simulator, eps_decay)
+    model = LinearQL_Model(config, train_simulator, test_simulator, eps_decay)
+    # model = DQL_Model(config, train_simulator, test_simulator, eps_decay)
     model.train()

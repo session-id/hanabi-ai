@@ -438,7 +438,9 @@ class QL_Model(RL_Model):
         q_target = self.placeholders['rewards'] + not_done * self.config.gamma * tf.reduce_max(self.target_q, axis=1)
         action_indices = tf.one_hot(self.placeholders['actions'], self.train_simulator.get_num_actions())
         q_est = tf.reduce_sum(self.q * action_indices, axis=1)
-        self.loss = tf.reduce_mean((q_target - q_est) ** 2)
+
+        valid_actions = tf.cast(self.placeholders['valid_actions_mask'], tf.float32)
+        self.loss = tf.reduce_mean(valid_actions * (q_target - q_est) ** 2)
 
 
     def _add_update_target_op(self, q_scope, target_q_scope):
