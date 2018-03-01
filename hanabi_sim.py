@@ -384,6 +384,8 @@ class RegularHanabiGameEasyFeatures(object):
 
         all_vectors.append(card_vector)
 
+    if len(state.player_hands[state.cur_player]) == self.cards_per_player - 1:
+      all_vectors.append([0] * (self.num_colors + self.max_number + 5))
     # Your own cards
     for card in state.player_hands[state.cur_player]:
       if card is None:
