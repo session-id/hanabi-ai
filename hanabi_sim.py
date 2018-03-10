@@ -278,7 +278,7 @@ class RegularHanabiGameEasyFeatures(object):
   def get_num_actions(self):
     return 2 * self.cards_per_player + (self.num_players - 1) * (self.num_colors + self.max_number)
 
-  def take_action(self, state, action):
+  def take_action(self, state, action, helper_reward=False):
     '''
     Args
     - state: HanabiState
@@ -301,9 +301,11 @@ class RegularHanabiGameEasyFeatures(object):
         if card_played.number == 5:
           state.add_hint_token()
         state.played_numbers[card_played.color] += 1
-        reward = 1
+        reward += 1
       else:
         state.bomb_tokens -= 1
+        if helper_reward:
+          reward -= 0.5
     # Discard
     elif action < self.cards_per_player * 2:
       played_index = action - self.cards_per_player
@@ -362,9 +364,20 @@ class RegularHanabiGameEasyFeatures(object):
 
     state.advance_player()
 
+    if helper_reward and not done:
+      reward += 0.1
+
     return state, reward, done
 
-  def get_state_vector(self, state):
+  def get_state_vector(self, state, cheat=False):
+    if cheat:
+      for player_hand in state.player_hands:
+        for hinted_card in player_hand:
+          hinted_card.color_hint = True
+          hinted_card.number_hint = True
+          hinted_card.possible_numbers = set([hinted_card.number])
+          hinted_card.possible_colors = set([hinted_card.color])
+
     remaining_counter = Counter()
     for card in state.deck.cards() + [x.card for x in state.player_hands[state.cur_player]]:
       remaining_counter[card] += 1

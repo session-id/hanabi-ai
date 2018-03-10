@@ -1,7 +1,9 @@
 from __future__ import print_function
 
-import hanabi_sim as hs
+import numpy as np
 import random
+
+import hanabi_sim as hs
 
 random.seed(1338)
 
@@ -51,8 +53,8 @@ state = game.get_start_state()
 # print(game.get_state_vector(state))
 
 while True:
-  print("Cards remaining in deck: {}, Turns until end: {}, Hint tokens: {}".format(len(state.deck), state.turns_until_end, state.hint_tokens))
-  print(game.get_state_vector(state))
+  state.print_self()
+  print(np.reshape(game.get_state_vector(state, cheat=True)[75:150], (5, 15)))
   state, reward, done = game.take_action(state, 5)
   if done:
     break

@@ -187,19 +187,19 @@ class QL_Model(RL_Model):
                 start_time = time.time()
                 epsilon = self.eps_decay(step)
 
-                features = self.train_simulator.get_state_vector(state)
+                features = self.train_simulator.get_state_vector(state, cheat=True)
                 valid_actions_mask = np.zeros(num_actions, dtype=bool)
                 valid_action_indices = list(self.train_simulator.get_valid_actions(state))
                 valid_actions_mask[valid_action_indices] = True
 
                 action, q_values = self.get_action(features, valid_actions_mask, epsilon=epsilon)
-                new_state, reward, done = self.train_simulator.take_action(state, action)
+                new_state, reward, done = self.train_simulator.take_action(state, action, helper_reward=True)
 
                 valid_actions_next_mask = np.zeros(num_actions, dtype=bool)
                 valid_action_indices = list(self.train_simulator.get_valid_actions(new_state))
                 valid_actions_next_mask[valid_action_indices] = True
 
-                new_features = self.train_simulator.get_state_vector(new_state)
+                new_features = self.train_simulator.get_state_vector(new_state, cheat=True)
                 replay_buffer.store(step, features, valid_actions_mask, action, reward, done, new_features, valid_actions_next_mask)
 
                 state = new_state
@@ -254,7 +254,7 @@ class QL_Model(RL_Model):
             while True:
                 if ep < self.config.num_test_to_print:
                     state.print_self()
-                features = self.train_simulator.get_state_vector(state)
+                features = self.train_simulator.get_state_vector(state, cheat=True)
                 valid_actions_mask = np.zeros(num_actions, dtype=bool)
                 valid_action_indices = list(self.test_simulator.get_valid_actions(state))
                 valid_actions_mask[valid_action_indices] = True
@@ -281,7 +281,7 @@ class QL_Model(RL_Model):
         avg_reward = np.mean(rewards)
         std_reward = np.std(rewards)
 
-        msg = "Average reward: {:04.2f} +/- {:04.2f}".format(avg_reward, std_reward)
+        msg = "Average reward: {:04.2f} +/- {:04.2f}".format(avg_reward, std_reward / np.sqrt(len(rewards)))
         print(msg)
 
         if step is not None:
