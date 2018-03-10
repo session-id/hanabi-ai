@@ -14,8 +14,8 @@ if __name__=='__main__':
     tf.set_random_seed(1341)
     config = LinearQL_Config()
     # config = DeepQL_Config()
-    train_simulator = hs.RegularHanabiGameEasyFeatures(2)
-    test_simulator = hs.RegularHanabiGameEasyFeatures(2)
+    train_simulator = hs.RegularHanabiGameEasyFeatures(config.num_players)
+    test_simulator = hs.RegularHanabiGameEasyFeatures(config.num_players)
 
     def eps_decay(step):
         if step >= config.eps_nsteps:
