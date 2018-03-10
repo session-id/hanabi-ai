@@ -60,7 +60,7 @@ class DeepQL_Config(object):
     
     batch_size = 20             # batch size
 
-    widths = [20, 20, 20]           # widths if you want to do mlp stuff
+    widths = []           # widths if you want to do mlp stuff
 
     q_values_metrics_size = 1000
     target_update_freq = 1000
