@@ -24,11 +24,11 @@ random.seed(1338)
 # print('')
 
 def print_action_display(state):
-  print("Valid actions:")
-  valid_actions = sorted(list(game.get_valid_actions(state)))
-  action_names = game.get_action_names(state)
-  for action in valid_actions:
-    print("{:2}, {}".format(action, action_names[action]))
+    print("Valid actions:")
+    valid_actions = sorted(list(game.get_valid_actions(state)))
+    action_names = game.get_action_names(state)
+    for action in valid_actions:
+        print("{:2}, {}".format(action, action_names[action]))
 
 game = hs.RegularHanabiGameEasyFeatures(2)
 state = game.get_start_state()
@@ -53,8 +53,8 @@ state = game.get_start_state()
 # print(game.get_state_vector(state))
 
 while True:
-  state.print_self()
-  print(np.reshape(game.get_state_vector(state, cheat=True)[75:150], (5, 15)))
-  state, reward, done = game.take_action(state, 5)
-  if done:
-    break
+    state.print_self()
+    print(np.reshape(game.get_state_vector(state, cheat=True)[75:150], (5, 15)))
+    state, reward, done = game.take_action(state, 5)
+    if done:
+        break
