@@ -278,7 +278,7 @@ class RegularHanabiGameEasyFeatures(object):
   def get_num_actions(self):
     return 2 * self.cards_per_player + (self.num_players - 1) * (self.num_colors + self.max_number)
 
-  def take_action(self, state, action, helper_reward=False):
+  def take_action(self, state, action, helper_reward_factor=0.):
     '''
     Args
     - state: HanabiState
@@ -304,8 +304,7 @@ class RegularHanabiGameEasyFeatures(object):
         reward += 1
       else:
         state.bomb_tokens -= 1
-        if helper_reward:
-          reward -= 0.5
+        reward -= 0.5 * helper_reward_factor
     # Discard
     elif action < self.cards_per_player * 2:
       played_index = action - self.cards_per_player
@@ -364,8 +363,7 @@ class RegularHanabiGameEasyFeatures(object):
 
     state.advance_player()
 
-    if helper_reward and not done:
-      reward += 0.1
+    reward += 0.1 * helper_reward_factor
 
     return state, reward, done
 
@@ -381,6 +379,9 @@ class RegularHanabiGameEasyFeatures(object):
     remaining_counter = Counter()
     for card in state.deck.cards() + [x.card for x in state.player_hands[state.cur_player]]:
       remaining_counter[card] += 1
+    all_remaining = set()
+    for card in state.deck.cards() + [x.card for hand in state.player_hands for x in hand]:
+      all_remaining.add(card)
 
     all_vectors = []
 
@@ -402,6 +403,10 @@ class RegularHanabiGameEasyFeatures(object):
             playable = 1
           if hinted_card.number <= state.played_numbers[hinted_card.color]:
             dead = 1
+          else:
+            for num in range(state.played_numbers[hinted_card.color]+1, hinted_card.number):
+              if Card(num, hinted_card.color) not in all_remaining:
+                dead = 1
           if dead != 1 and remaining_counter[hinted_card.card] == 0:
             active_copies = 0
             for player_num in range(self.num_players):
@@ -436,11 +441,19 @@ class RegularHanabiGameEasyFeatures(object):
               total_possibilities += 1
               if state.played_numbers[possible_card.color] + 1 == possible_card.number:
                 playable_poss += 1
+              dead = False
               # Check if dead
               if state.played_numbers[possible_card.color] >= possible_card.number:
                 dead_poss += 1
+                dead = True
+              else:
+                for num in range(state.played_numbers[possible_card.color]+1, possible_card.number):
+                  if Card(num, possible_card.color) not in all_remaining:
+                    dead_poss += 1
+                    dead = True
+                    break
               # Note: indispensable is mutually exclusive with dead
-              elif remaining_counter[possible_card] == 1:
+              if not dead and remaining_counter[possible_card] == 1:
                 indispensable_poss += 1
         if total_possibilities == 0:
           raise RuntimeError("There are zero possibilities for what this card can be. Something went wrong.")
