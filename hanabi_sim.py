@@ -41,16 +41,26 @@ class Deck(object):
     '''A stack of Hanabi cards.'''
 
     def __init__(self, cards_and_counts):
+        '''
+        Args
+        - cards_and_counts: dict, {Card => int}
+        '''
         self.cards_set = set()
         for card, count in cards_and_counts.items():
             for i in range(count):
                 self.cards_set.add((card, i))
 
     def cards(self):
+        '''
+        Returns: list of Card
+        '''
         return [card for card, _ in self.cards_set]
 
     def draw(self):
-        drawn_card = random.sample(self.cards_set, 1)[0]
+        '''
+        Returns: Card
+        '''
+        drawn_card = random.choice(self.cards_set)
         self.cards_set.remove(drawn_card)
         return drawn_card[0]
 
@@ -63,7 +73,7 @@ class BaseHanabiGame(object):
 
     def get_start_state(self):
         '''
-        Output:
+        Returns
             start_state: a randomized starting state for the game.
         '''
         raise NotImplementedError
@@ -76,7 +86,7 @@ class BaseHanabiGame(object):
 
     def get_state_vector(self, state):
         '''
-        Output:
+        Returns
             state_vector: a vector containing the feature vector corresponding to the game state
                 as seen by the provided player
         '''
@@ -84,18 +94,17 @@ class BaseHanabiGame(object):
 
     def get_valid_actions(self, state):
         '''
-        Output:
+        Returns
             valid_actions: a set containing the indices of valid actions
         '''
         raise NotImplementedError
 
     def take_action(self, state, action):
         '''
-        Input:
+        Args
             state: current_state
-            action: integer corresponding to index of action taken
-                actions are numbered in blocks as follows. x = # of cards in hand, n = # of players,
-                h = # of possible hints:
+            action: int, corresponding to index of action taken. actions are numbered in
+                blocks as follows. x = # of cards in hand, n = # of players, h = # of possible hints
                 0 - x-1: play card
                 x - 2x-1: discard card
                 2x - 2x+h-1: hints for other player 1
@@ -103,7 +112,7 @@ class BaseHanabiGame(object):
                 ...
                 2x+(n-2)h - 2x+(n-1)h-1: hints for player n-1
 
-        Output:
+        Returns
             new_state: the new global state
             reward: the reward from performing action
             done: a boolean indicating if the episode has finished
@@ -113,6 +122,12 @@ class BaseHanabiGame(object):
 
 class HintedCard(object):
     def __init__(self, card, max_number, colors):
+        '''
+        Args
+        - card: Card
+        - max_number: int
+        - colors: list of str
+        '''
         self.card = card
         self.color_hint = False
         self.number_hint = False
@@ -158,7 +173,7 @@ class HanabiState(object):
         - num_players: int
         - cards_per_player: int
         - colors: list of str
-        - max_number: int
+        - max_number: int, highest number per color
         - number_counts: int
         - max_hint_tokens: int
         - starting_bomb_tokens: int
@@ -226,12 +241,20 @@ class RegularHanabiGameEasyFeatures(object):
         self.starting_bomb_tokens = 3
 
     def get_start_state(self):
+        '''
+        Returns
+        - state: HanabiState
+        '''
         state = HanabiState(self.num_players, self.cards_per_player, self.colors, self.max_number,
             self.number_counts, self.max_hint_tokens, self.starting_bomb_tokens)
         state.initialize_random()
         return state
 
     def get_action_names(self, state):
+        '''
+        Returns
+        - action_names: list of str, descriptions of each action
+        '''
         action_names = []
         # Play own cards
         for i in range(self.cards_per_player):
@@ -250,6 +273,10 @@ class RegularHanabiGameEasyFeatures(object):
         return action_names
 
     def get_valid_actions(self, state):
+        '''
+        Returns
+        - valid_actions: set of int
+        '''
         valid_actions = set()
         action_num = 0
         # Play own cards
@@ -283,17 +310,21 @@ class RegularHanabiGameEasyFeatures(object):
         Args
         - state: HanabiState
         - action: int
+
+        Returns: (state, reward, done)
+        - state: HanabiState
+        - reward: float
+        - done: bool
         '''
         done = False
         reward = 0
 
         # If not needed, we can remove this copying for more efficiency
         state = copy.deepcopy(state)
-        state.cur_player = state.cur_player
         if action not in self.get_valid_actions(state):
             raise RuntimeError("Invalid action: {}".format(action))
 
-        # Play own cards
+        # Play own card
         if action < self.cards_per_player:
             played_index = action
             card_played = state.player_hands[state.cur_player][played_index].card
@@ -492,7 +523,7 @@ class RegularHanabiGameEasyFeatures(object):
         feature_vector = np.array([item for sublist in all_vectors for item in sublist])
 
         if len(feature_vector) != self.get_state_vector_size():
-                raise RuntimeError("Feature vector length is incorrect: {}, supposed to be {}".format(len(feature_vector), self.get_state_vector_size()))
+            raise RuntimeError("Feature vector length is incorrect: {}, supposed to be {}".format(len(feature_vector), self.get_state_vector_size()))
 
         return feature_vector
 
