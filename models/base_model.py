@@ -119,7 +119,20 @@ class QL_Model(RL_Model):
         ckpt_prefix = os.path.join(self.config.ckpt_dir, 'ckpt')
         self.saver.save(self.sess, ckpt_prefix)
 
+        
+    def load(self, filename):
+        '''
+        Loads model from saved state. Filename should not include the ckpt_dir.
+        '''
 
+        # TODO: test this function
+        
+        with tf.Session() as sess:
+            saver = tf.train.import_meta_graph(os.path.join(self.config.ckpt_dir, filename))
+            saver.restore(sess, './myModel')
+            # sess.run(myVar)
+            
+        
     def get_action(self, state, valid_actions_mask, epsilon=0):
         '''
         Performs epsilon-greedy action selection.
