@@ -1,3 +1,4 @@
+import json
 import os
 import time
 from collections import deque
@@ -77,6 +78,9 @@ class QL_Model(RL_Model):
 
         # set the epsilon
         self.eps_decay = eps_decay
+
+        with open(os.path.join(config.log_dir, 'config.txt'), 'w') as f:
+            json.dump({ x: getattr(config,x) for x in dir(config) if not x.startswith("__")}, f)
 
 
     def _get_q_values_wrapper(self, state, scope):
@@ -187,7 +191,7 @@ class QL_Model(RL_Model):
                 start_time = time.time()
                 epsilon = self.eps_decay(step)
 
-                features = self.train_simulator.get_state_vector(state, cheat=True)
+                features = self.train_simulator.get_state_vector(state, cheat=self.config.cheating)
                 valid_actions_mask = np.zeros(num_actions, dtype=bool)
                 valid_action_indices = list(self.train_simulator.get_valid_actions(state))
                 valid_actions_mask[valid_action_indices] = True
@@ -199,7 +203,7 @@ class QL_Model(RL_Model):
                 valid_action_indices = list(self.train_simulator.get_valid_actions(new_state))
                 valid_actions_next_mask[valid_action_indices] = True
 
-                new_features = self.train_simulator.get_state_vector(new_state, cheat=True)
+                new_features = self.train_simulator.get_state_vector(new_state, cheat=self.config.cheating)
                 replay_buffer.store(step, features, valid_actions_mask, action, reward, done, new_features, valid_actions_next_mask)
 
                 state = new_state
@@ -254,7 +258,7 @@ class QL_Model(RL_Model):
             while True:
                 if ep < self.config.num_test_to_print:
                     state.print_self()
-                features = self.train_simulator.get_state_vector(state, cheat=True)
+                features = self.train_simulator.get_state_vector(state, cheat=self.config.cheating)
                 valid_actions_mask = np.zeros(num_actions, dtype=bool)
                 valid_action_indices = list(self.test_simulator.get_valid_actions(state))
                 valid_actions_mask[valid_action_indices] = True
