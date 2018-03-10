@@ -60,7 +60,7 @@ class Deck(object):
         '''
         Returns: Card
         '''
-        drawn_card = random.choice(self.cards_set)
+        drawn_card = random.sample(self.cards_set, 1)[0]
         self.cards_set.remove(drawn_card)
         return drawn_card[0]
 
