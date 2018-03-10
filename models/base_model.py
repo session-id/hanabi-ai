@@ -124,17 +124,12 @@ class QL_Model(RL_Model):
         self.saver.save(self.sess, ckpt_prefix)
 
         
-    def load(self, filename):
+    def load(self, fileprefix):
         '''
-        Loads model from saved state. Filename should not include the ckpt_dir.
+        Loads model from saved state. Fileprefix should not include the ckpt_dir.
         '''
-
-        # TODO: test this function
-        
-        with tf.Session() as sess:
-            saver = tf.train.import_meta_graph(os.path.join(self.config.ckpt_dir, filename))
-            saver.restore(sess, './myModel')
-            # sess.run(myVar)
+        self.saver = tf.train.import_meta_graph(os.path.join(self.config.ckpt_dir, fileprefix)+'.meta')
+        self.saver.restore(self.sess, os.path.join(self.config.ckpt_dir, fileprefix))
             
         
     def get_action(self, state, valid_actions_mask, epsilon=0):
@@ -243,6 +238,14 @@ class QL_Model(RL_Model):
 
             episode += 1
             self.update_averages('train', ep_reward=total_reward, q_values=None)
+
+            # save checkpoints (if ckpt_freq is defined)
+            if self.config.ckpt_freq and episode % self.config.ckpt_freq == 0:
+                self.save()
+                # a little hacky, but save episode number in a txt file in the same directory
+                # (for later: set episode number correctly when loading from checkpoint)
+                with open(os.path.join(self.config.ckpt_dir,'ckpt_epsisode.txt'), 'w') as f:
+                    f.write('last saved epsiode: {}'.format(episode))
 
         # evaluate again at the end of training
         test_avg_rewards.append(self.evaluate(step=step))
