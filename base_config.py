@@ -37,4 +37,4 @@ class QL_Config(object):
     colors = ['red', 'white']
     cards_per_player = 3
     max_number = 3
-    self.number_counts = [3, 2, 1]
+    number_counts = [3, 2, 1]
