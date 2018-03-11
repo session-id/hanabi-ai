@@ -34,3 +34,7 @@ class QL_Config(object):
     test_epsilon = 0.0         # epsilon for test-time exploration (0 for always choosing the best action)
 
     num_players = 2
+    colors = ['red', 'white']
+    cards_per_player = 3
+    max_number = 3
+    self.number_counts = [3, 2, 1]

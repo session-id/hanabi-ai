@@ -6,6 +6,7 @@ from config import LinearQL_Config, DeepQL_Config
 import hanabi_sim as hs
 from models.linear_ql import LinearQL_Model
 from models.deep_ql import DQL_Model
+# from models.recurrent_ql import RecurrentQL_Model
 
 
 if __name__=='__main__':
@@ -14,8 +15,9 @@ if __name__=='__main__':
     tf.set_random_seed(1341)
     config = LinearQL_Config()
     # config = DeepQL_Config()
-    train_simulator = hs.RegularHanabiGameEasyFeatures(config.num_players)
-    test_simulator = hs.RegularHanabiGameEasyFeatures(config.num_players)
+    train_simulator = hs.RegularHanabiGameEasyFeatures(config.num_players,
+            config.colors, config.cards_per_player, config.max_number, config.number_counts)
+    test_simulator = train_simulator
 
     def eps_decay(step):
         if step >= config.eps_nsteps:

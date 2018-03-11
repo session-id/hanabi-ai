@@ -232,15 +232,15 @@ class RegularHanabiGameEasyFeatures(object):
     Currently returning the easy feature set
     '''
 
-    def __init__(self, num_players):
+    def __init__(self, num_players, colors, cards_per_player, max_number, number_counts):
         self.num_players = num_players
-        self.cards_per_player = REGULAR_HANABI_CARDS_PER_PLAYER[num_players]
-        self.colors = ['red', 'white', 'blue', 'green', 'yellow']
+        self.cards_per_player = cards_per_player
+        self.colors = colors
         self.num_colors = len(self.colors)
-        self.max_number = 5
-        self.number_counts = [3, 2, 2, 2, 1]
+        self.max_number = max_number
         self.max_hint_tokens = 8
         self.starting_bomb_tokens = 3
+        self.number_counts = number_counts
 
     def get_start_state(self):
         '''
