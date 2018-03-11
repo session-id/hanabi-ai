@@ -192,6 +192,8 @@ class HanabiState(object):
                 cards_and_counts[Card(number, color)] = number_count
         self.base_deck = Deck(cards_and_counts)
 
+        self.history = []
+
     ''' This method is just for printing. '''
     def get_pretty_board(self):
         return [Card(num, color) for color, num in self.played_numbers.items()]
@@ -522,7 +524,6 @@ class RegularHanabiGameEasyFeatures(object):
         all_vectors.append(exhausted)
 
         feature_vector = np.array([item for sublist in all_vectors for item in sublist])
-
         if len(feature_vector) != self.get_state_vector_size():
             raise RuntimeError("Feature vector length is incorrect: {}, supposed to be {}".format(len(feature_vector), self.get_state_vector_size()))
 
@@ -531,3 +532,88 @@ class RegularHanabiGameEasyFeatures(object):
     def get_state_vector_size(self):
         return (self.num_colors + self.max_number + 5) * self.cards_per_player * self.num_players + self.max_hint_tokens\
             + (self.starting_bomb_tokens-1) + self.max_number * self.num_colors + 1
+
+class RegularHanabiGameHistoryFeatures(RegularHanabiGameEasyFeatures):
+    '''
+    The regular Hanabi game, 5 colors.
+    Using history as the primary feature, ignoring actual card identities.
+    '''
+    def take_action(self, state, action):
+        state, reward, done = super().take_action(state, action)
+        x = np.zeros((self.get_num_actions()))
+        x[action] = 1
+        state.history.append(x)
+        return state, reward, done
+
+    def get_state_vector(self, state):
+        remaining_counter = Counter()
+        for card in state.deck.cards() + [x.card for x in state.player_hands[state.cur_player]]:
+            remaining_counter[card] += 1
+        all_remaining = set()
+        for card in state.deck.cards() + [x.card for hand in state.player_hands for x in hand]:
+            all_remaining.add(card)
+
+        all_vectors = []
+
+        # Other players' cards
+        for other_player_num in range(1, self.num_players):
+            player_id = (state.cur_player + other_player_num) % self.num_players
+            if len(state.player_hands[player_id]) == self.cards_per_player - 1:
+                    all_vectors.append([0] * 3)
+            for hinted_card in state.player_hands[player_id]:
+                if hinted_card is not None:
+                    playable = dead = indispensable = 0
+                    if hinted_card.number == state.played_numbers[hinted_card.color] + 1:
+                        playable = 1
+                    if hinted_card.number <= state.played_numbers[hinted_card.color]:
+                        dead = 1
+                    else:
+                        for num in range(state.played_numbers[hinted_card.color]+1, hinted_card.number):
+                            if Card(num, hinted_card.color) not in all_remaining:
+                                dead = 1
+                    if dead != 1 and remaining_counter[hinted_card.card] == 0:
+                        active_copies = 0
+                        for player_num in range(self.num_players):
+                            for hinted_card2 in state.player_hands[player_num]:
+                                if hinted_card2.card == hinted_card.card:
+                                    active_copies += 1
+                        if active_copies == 1:
+                            indispensable = 1
+                    card_vector = [playable, dead, indispensable]
+
+                all_vectors.append(card_vector)
+
+        # Hint token
+        hint_vector = [0] * self.max_hint_tokens
+        if state.hint_tokens > 0:
+            hint_vector[state.hint_tokens - 1] = 1
+        bomb_vector = [0] * (self.starting_bomb_tokens - 1)
+        if state.bomb_tokens > 1:
+            bomb_vector[state.bomb_tokens - 2] = 1
+        all_vectors.append(hint_vector)
+        all_vectors.append(bomb_vector)
+
+        # Deck exhausted
+        exhausted = [0]
+        if len(state.deck) == 0:
+            exhausted = [1]
+        all_vectors.append(exhausted)
+
+        static_vector = np.array([item for sublist in all_vectors for item in sublist])
+        dynamic_vectors = state.history
+
+        if len(static_vector) != self.get_state_vector_size()['static']:
+            raise RuntimeError("Static vector length is incorrect: {}, supposed to be {}".format(len(static_vector), self.get_state_vector_size()['static']))
+
+        for vec in dynamic_vectors:
+            if len(vec) != self.get_state_vector_size()['dynamic']:
+                raise RuntimeError("Dynamic vector length is incorrect: {}, supposed to be {}".format(len(vec), self.get_state_vector_size()['dynamic']))
+
+        return {'static': static_vector, 'dynamic': dynamic_vectors}
+
+    def get_state_vector_size(self):
+        d = {
+                'static': 3 * (self.num_players - 1) * self.cards_per_player + self.max_hint_tokens + (self.starting_bomb_tokens-1) + 1,
+                'dynamic': self.get_num_actions()
+            }
+        return d
