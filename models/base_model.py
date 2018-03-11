@@ -460,16 +460,29 @@ class QL_Model(RL_Model):
     def _add_loss_op(self):
         '''
         Sets self.loss to the loss operation defined as
+            loss = (y - Q(s, a))^2
 
-        Q_samp(s) = r if done
-                  = r + gamma * max_a' Q_target(s', a')
-        loss = (Q_samp(s) - Q(s, a))^2
+        # normal DQN
+        y = r if done
+          = r + gamma * max_a' Q_target(s', a')
+
+        # double DQN
+        y = r if done
+          = r + gamma * Q_target(s', argmax_a' Q(s', a'))
+
+        Note: self.loss requires the 'done_mask', 'rewards', 'actions', and 'states_next'
+            placeholders to be filled
         '''
+        num_actions = self.train_simulator.get_num_actions()
         not_done = 1 - tf.cast(self.placeholders['done_mask'], tf.float32)
-        q_target = self.placeholders['rewards'] + not_done * self.config.gamma * tf.reduce_max(self.target_q, axis=1)
-        action_indices = tf.one_hot(self.placeholders['actions'], self.train_simulator.get_num_actions())
+
+        best_next_actions = tf.one_hot(tf.argmax(self.q, axis=1), num_actions)
+        y = self.placeholders['rewards'] + not_done * self.config.gamma * \
+            tf.reduce_sum(self.target_q * best_next_actions, axis=1)
+
+        action_indices = tf.one_hot(self.placeholders['actions'], num_actions)
         q_est = tf.reduce_sum(self.q * action_indices, axis=1)
-        self.loss = tf.reduce_mean((q_target - q_est) ** 2)
+        self.loss = tf.reduce_mean((y - q_est) ** 2)
 
 
     def _add_update_target_op(self, q_scope, target_q_scope):
