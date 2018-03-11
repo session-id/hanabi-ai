@@ -205,8 +205,10 @@ class QL_Model(RL_Model):
                 valid_actions_mask[valid_action_indices] = True
 
                 action, q_values = self.get_action(features, valid_actions_mask, epsilon=epsilon)
-                helper_reward_factor = self.config.helper_reward_factor * 0.5 ** (float(step) / self.config.helper_reward_hl)
-                new_state, reward, done = self.train_simulator.take_action(state, action, helper_reward_factor=helper_reward_factor)
+                decay = 0.5 ** (float(step) / self.config.helper_reward_hl)
+                new_state, reward, done = self.train_simulator.take_action(state, action,
+                        bomb_reward=self.config.bomb_reward * decay,
+                        alive_reward = self.config.alive_reward * decay)
 
                 valid_actions_next_mask = np.zeros(num_actions, dtype=bool)
                 valid_action_indices = list(self.train_simulator.get_valid_actions(new_state))

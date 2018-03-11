@@ -305,7 +305,7 @@ class RegularHanabiGameEasyFeatures(object):
     def get_num_actions(self):
         return 2 * self.cards_per_player + (self.num_players - 1) * (self.num_colors + self.max_number)
 
-    def take_action(self, state, action, helper_reward_factor=0.):
+    def take_action(self, state, action, bomb_reward=0., alive_reward=0.):
         '''
         Args
         - state: HanabiState
@@ -335,7 +335,7 @@ class RegularHanabiGameEasyFeatures(object):
                 reward += 1
             else:
                 state.bomb_tokens -= 1
-                reward -= 0.5 * helper_reward_factor
+                reward -= bomb_reward
         # Discard
         elif action < self.cards_per_player * 2:
             played_index = action - self.cards_per_player
@@ -394,7 +394,8 @@ class RegularHanabiGameEasyFeatures(object):
 
         state.advance_player()
 
-        reward += 0.1 * helper_reward_factor
+        if not done:
+            reward += alive_reward
 
         return state, reward, done
 
