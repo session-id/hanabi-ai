@@ -23,7 +23,8 @@ class QL_Config(object):
     replay_buffer_size = 100
 
     cheating = False
-    helper_reward_factor = 0.
+    bomb_reward = -2.
+    alive_reward = 0.1
     helper_reward_hl = 40000
 
     eps_begin  = 1
