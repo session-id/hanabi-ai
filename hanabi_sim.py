@@ -294,11 +294,13 @@ class RegularHanabiGameEasyFeatures(object):
                 player_hand = state.player_hands[player_id]
                 for number in range(1, self.max_number+1):
                     if any(card.number == number for card in player_hand):
-                        valid_actions.add(action_num)
+                        if not all(card.number_hint for card in player_hand if card.number == number):
+                            valid_actions.add(action_num)
                     action_num += 1
                 for color in self.colors:
                     if any(card.color == color for card in player_hand):
-                        valid_actions.add(action_num)
+                        if not all(card.color_hint for card in player_hand if card.color == color):
+                            valid_actions.add(action_num)
                     action_num += 1
         return valid_actions
 
