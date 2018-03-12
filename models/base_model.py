@@ -219,7 +219,9 @@ class QL_Model(RL_Model):
 
                 state = new_state
                 total_reward += reward
-                self.update_averages('train', ep_reward=None, q_values=q_values)
+
+                valid_q_values = q_values[valid_action_indices]
+                self.update_averages('train', ep_reward=None, q_values=valid_q_values)
 
                 if step > self.config.train_start:
                     if step % self.config.test_freq == 0:
@@ -287,7 +289,8 @@ class QL_Model(RL_Model):
                 if ep < self.config.num_test_to_print:
                     print(self.test_simulator.get_action_names(state)[action])
                 if step is not None:
-                    self.update_averages('test', ep_reward=None, q_values=q_values)
+                    valid_q_values = q_values[valid_action_indices]
+                    self.update_averages('test', ep_reward=None, q_values=valid_q_values)
                 total_reward += reward
                 if done:
                     break
