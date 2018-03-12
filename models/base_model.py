@@ -83,7 +83,7 @@ class QL_Model(RL_Model):
             json.dump({ x: getattr(config,x) for x in dir(config) if not x.startswith("__")}, f)
 
 
-    def _get_q_values_wrapper(self, state, scope):
+    def _get_q_values_wrapper(self, state, valid_actions_mask, scope):
         '''
         Args
         - state: tf.Tensor, shape [batch_size, state_dim]
@@ -93,14 +93,9 @@ class QL_Model(RL_Model):
         - q: tf.Tensor, shape [batch_size, num_actions], with any invalid actions having a large negative q-value
         '''
         assert scope in ['q', 'target_q']
-        if scope == 'q':
-            mask = self.placeholders['valid_actions_mask']
-        else:
-            mask = self.placeholders['valid_actions_next_mask']
-
         q_values = self._get_q_values_op(state, scope)
         neg_inf = tf.fill(tf.shape(q_values), -10.0**10)
-        q = tf.where(mask, x=q_values, y=neg_inf)
+        q = tf.where(valid_actions_mask, x=q_values, y=neg_inf)
         return q
 
 
@@ -379,8 +374,12 @@ class QL_Model(RL_Model):
         self._add_placeholders()
 
         # compute Q values
-        self.q = self._get_q_values_wrapper(self.placeholders['states'], scope="q")
-        self.target_q = self._get_q_values_wrapper(self.placeholders['states_next'], scope="target_q")
+        self.q = self._get_q_values_wrapper(self.placeholders['states'],
+                self.placeholders['valid_actions_mask'], scope="q")
+        self.double_q = self._get_q_values_wrapper(self.placeholders['states_next'],
+                self.placeholders['valid_actions_next_mask'], scope="q")
+        self.target_q = self._get_q_values_wrapper(self.placeholders['states_next'],
+                self.placeholders['valid_actions_next_mask'], scope="target_q")
 
         # self.update_target_op
         self._add_update_target_op("q", "target_q")
@@ -479,7 +478,7 @@ class QL_Model(RL_Model):
         num_actions = self.train_simulator.get_num_actions()
         not_done = 1 - tf.cast(self.placeholders['done_mask'], tf.float32)
 
-        best_next_actions = tf.one_hot(tf.argmax(self.q, axis=1), num_actions)
+        best_next_actions = tf.one_hot(tf.argmax(self.double_q, axis=1), num_actions)
         y = self.placeholders['rewards'] + not_done * self.config.gamma * \
             tf.reduce_sum(self.target_q * best_next_actions, axis=1)
 
