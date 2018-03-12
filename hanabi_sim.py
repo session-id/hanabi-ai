@@ -339,7 +339,8 @@ class RegularHanabiGameEasyFeatures(object):
                 reward += 1
             else:
                 state.bomb_tokens -= 1
-                reward += bomb_reward
+                if len(state.deck) + state.turns_until_end > state.bomb_tokens:
+                    reward += bomb_reward
         # Discard
         elif action < self.cards_per_player * 2:
             played_index = action - self.cards_per_player
