@@ -369,6 +369,22 @@ class QL_Model(RL_Model):
             self.sess.run(self.update_target_op)
 
 
+    def _add_optimizer_op(self):
+        optimizer = tf.train.AdamOptimizer(learning_rate=self.placeholders['lr'])
+        var_list = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope)
+        grad_var_pairs = optimizer.compute_gradients(self.loss, var_list=var_list)
+
+        if self.config.grad_clip:
+            grad_var_pairs = [
+                (tf.clip_by_norm(grad, clip_norm=self.config.clip_val), v) for grad, v in grad_var_pairs
+            ]
+            self.train_op = optimizer.apply_gradients(grad_var_pairs)
+        else:
+            self.train_op = optimizer.minimize(self.loss)
+
+        self.grad_norm = tf.global_norm([grad for grad, _ in grad_var_pairs])
+
+
     def build(self):
         # self.placeholders: dict, {str => tf.placeholder}
         self._add_placeholders()
@@ -387,9 +403,8 @@ class QL_Model(RL_Model):
         # self.loss
         self._add_loss_op()
 
-        # self.train_op
-        optimizer = tf.train.AdamOptimizer(learning_rate=self.placeholders['lr'])
-        self.train_op = optimizer.minimize(self.loss)
+        # self.train_op, self.grad_norm
+        self._add_optimizer_op()
 
         # self.summary_placeholders, self.summaries_train, self.summaries_test
         self._add_summaries()
@@ -433,7 +448,10 @@ class QL_Model(RL_Model):
             self.summaries_train = tf.summary.merge([
                 tf.summary.scalar(name, summary_tensor)
                 for name, summary_tensor in summary_tensors.items()
-            ] + [tf.summary.scalar("loss", self.loss)])
+            ] + [
+                tf.summary.scalar("loss", self.loss),
+                tf.summary.scalar("grad_norm", self.grad_norm)
+            ])
 
         with tf.variable_scope('test'):
             self.summaries_test = tf.summary.merge([
