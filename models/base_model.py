@@ -369,7 +369,7 @@ class QL_Model(RL_Model):
             self.sess.run(self.update_target_op)
 
 
-    def _add_optimizer_op(self):
+    def _add_optimizer_op(self, scope):
         optimizer = tf.train.AdamOptimizer(learning_rate=self.placeholders['lr'])
         var_list = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope)
         grad_var_pairs = optimizer.compute_gradients(self.loss, var_list=var_list)
@@ -398,13 +398,13 @@ class QL_Model(RL_Model):
                 self.placeholders['valid_actions_next_mask'], scope="target_q")
 
         # self.update_target_op
-        self._add_update_target_op("q", "target_q")
+        self._add_update_target_op(q_scope="q", target_q_scope="target_q")
 
         # self.loss
         self._add_loss_op()
 
         # self.train_op, self.grad_norm
-        self._add_optimizer_op()
+        self._add_optimizer_op(scope="q")
 
         # self.summary_placeholders, self.summaries_train, self.summaries_test
         self._add_summaries()
