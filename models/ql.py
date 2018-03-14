@@ -2,7 +2,7 @@ from models.base_model import QL_Model
 import tensorflow as tf
 
 
-class LinearQL_Model(QL_Model):
+class MLP_QL_Model(QL_Model):
 
     def _get_q_values_op(self, states, scope):
         '''
@@ -17,6 +17,9 @@ class LinearQL_Model(QL_Model):
         num_actions = self.train_simulator.get_num_actions()
         with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
             for width in self.config.widths:
-                h = tf.layers.dense(h, width, activation=tf.nn.relu)
-            q_values = tf.layers.dense(h, num_actions)
+                h = tf.layers.dense(h, width,
+                    activation=tf.nn.relu,
+                    kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self.config.fc_reg)
+                )
+            q_values = tf.layers.dense(h, num_actions, activation=None)
         return q_values

@@ -240,12 +240,12 @@ class QL_Model(RL_Model):
                         test_avg_rewards.append(np.mean(test_rewards))
 
                     if step % self.config.print_freq == 0:
-                        loss = self.train_step(step, replay_buffer, return_stats=True)
+                        loss = self.train_step(step, replay_buffer, epsilon, return_stats=True)
                         duration = time.time() - start_time
                         print('step {:6d}, episode {:4d}, epsilon: {:0.4f}, loss: {:0.4f}, time: {:0.3f}s'.format(
                             step, episode, epsilon, loss, duration))
                     else:
-                        self.train_step(step, replay_buffer, return_stats=False)
+                        self.train_step(step, replay_buffer, epsilon, return_stats=False)
 
                 step += 1
                 if done or step >= self.config.train_num_steps:
@@ -343,13 +343,14 @@ class QL_Model(RL_Model):
         return rewards
 
 
-    def train_step(self, step, replay_buffer, return_stats=False):
+    def train_step(self, step, replay_buffer, epsilon, return_stats=False):
         '''
         Run a training step
 
         Args
         - step: int
-        - replay_buffer: ReplayBuffer,
+        - replay_buffer: ReplayBuffer
+        - epsilon: float, e-greedy parameter between 0 and 1
         - return_stats: bool
 
         Returns
@@ -373,14 +374,15 @@ class QL_Model(RL_Model):
             # write the summary to TensorBoard
             summary_fd = {
                 self.summary_placeholders['rewards']: self.metrics_train['rewards'],
-                self.summary_placeholders['q_values']: self.metrics_train['q_values']
+                self.summary_placeholders['q_values']: self.metrics_train['q_values'],
+                self.summary_placeholders['epsilon']: epsilon
             }
 
             # copy the summary feed_dict into feed_dict
             for k, v in summary_fd.items():
                 feed_dict[k] = v
 
-            _, loss, train_summary_str  = self.sess.run([self.train_op, self.loss, self.summaries_train],
+            _, loss, train_summary_str  = self.sess.run([self.train_op, self.losses['total'], self.summaries_train],
                 feed_dict=feed_dict)
             self.summary_writer.add_summary(train_summary_str, step)
             self.summary_writer.flush()
@@ -397,7 +399,7 @@ class QL_Model(RL_Model):
     def _add_optimizer_op(self, scope):
         optimizer = tf.train.AdamOptimizer(learning_rate=self.placeholders['lr'])
         var_list = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope)
-        grad_var_pairs = optimizer.compute_gradients(self.loss, var_list=var_list)
+        grad_var_pairs = optimizer.compute_gradients(self.losses['total'], var_list=var_list)
 
         if self.config.grad_clip:
             grad_var_pairs = [
@@ -405,7 +407,7 @@ class QL_Model(RL_Model):
             ]
             self.train_op = optimizer.apply_gradients(grad_var_pairs)
         else:
-            self.train_op = optimizer.minimize(self.loss)
+            self.train_op = optimizer.minimize(self.losses['total'])
 
         self.weights_norm = tf.global_norm([v for v in var_list])
         self.grad_norm = tf.global_norm([grad for grad, _ in grad_var_pairs])
@@ -426,7 +428,7 @@ class QL_Model(RL_Model):
         # self.update_target_op
         self._add_update_target_op(q_scope="q", target_q_scope="target_q")
 
-        # self.loss
+        # self.losses
         self._add_loss_op()
 
         # self.train_op, self.grad_norm, self.weights_norm
@@ -455,7 +457,8 @@ class QL_Model(RL_Model):
         }
         self.summary_placeholders = {
             'rewards': tf.placeholder(tf.float32, shape=[None], name='rewards'),
-            'q_values': tf.placeholder(tf.float32, shape=[None], name='q_values')
+            'q_values': tf.placeholder(tf.float32, shape=[None], name='q_values'),
+            'epsilon': tf.placeholder(tf.float32, shape=[], name='epsilon')
         }
 
         avg_reward, var_reward = tf.nn.moments(self.summary_placeholders['rewards'], axes=[0])
@@ -475,9 +478,12 @@ class QL_Model(RL_Model):
                 tf.summary.scalar(name, summary_tensor)
                 for name, summary_tensor in summary_tensors.items()
             ] + [
-                tf.summary.scalar("loss", self.loss),
+                tf.summary.scalar("loss_total", self.losses['total']),
+                tf.summary.scalar("loss_mse", self.losses['mse']),
+                tf.summary.scalar("loss_reg", self.losses['reg']),
                 tf.summary.scalar("grad_norm", self.grad_norm),
-                tf.summary.scalar("weights_norm", self.weights_norm)
+                tf.summary.scalar("weights_norm", self.weights_norm),
+                tf.summary.scalar("epsilon", self.summary_placeholders['epsilon'])
             ])
 
         with tf.variable_scope('test'):
@@ -506,7 +512,7 @@ class QL_Model(RL_Model):
 
     def _add_loss_op(self):
         '''
-        Sets self.loss to the loss operation defined as
+        Sets self.losses to the loss operation defined as
             loss = (y - Q(s, a))^2
 
         # normal DQN
@@ -517,7 +523,7 @@ class QL_Model(RL_Model):
         y = r if done
           = r + gamma * Q_target(s', argmax_a' Q(s', a'))
 
-        Note: self.loss requires the 'done_mask', 'rewards', 'actions', and 'states_next'
+        Note: self.losses requires the 'done_mask', 'rewards', 'actions', and 'states_next'
             placeholders to be filled
         '''
         num_actions = self.train_simulator.get_num_actions()
@@ -532,7 +538,16 @@ class QL_Model(RL_Model):
 
         action_indices = tf.one_hot(self.placeholders['actions'], num_actions)
         q_est = tf.reduce_sum(self.q * action_indices, axis=1)
-        self.loss = tf.reduce_mean((y - q_est) ** 2)
+        loss_mse = tf.losses.mean_squared_error(y, q_est, reduction=tf.losses.Reduction.MEAN)
+
+        loss_total = tf.losses.get_total_loss(add_regularization_losses=True)
+        loss_reg = tf.losses.get_regularization_loss()
+
+        self.losses = {
+            'mse': loss_mse,
+            'total': loss_total,
+            'reg': loss_reg
+        }
 
 
     def _add_update_target_op(self, q_scope, target_q_scope):
