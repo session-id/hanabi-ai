@@ -468,16 +468,16 @@ class QL_Model(RL_Model):
             'epsilon': tf.placeholder(tf.float32, shape=[], name='epsilon')
         }
 
-        avg_reward, var_reward = tf.nn.moments(self.summary_placeholders['rewards'], axes=[0])
-        avg_q, var_q = tf.nn.moments(self.summary_placeholders['q_values'], axes=[0])
+        reward_avg, reward_var = tf.nn.moments(self.summary_placeholders['rewards'], axes=[0])
+        q_avg, q_var = tf.nn.moments(self.summary_placeholders['q_values'], axes=[0])
 
         summary_tensors = {
-            'avg_reward': avg_reward,
-            'max_reward': tf.reduce_max(self.summary_placeholders['rewards']),
-            'std_reward': tf.sqrt(var_reward),
-            'avg_q': avg_q,
-            'max_q': tf.reduce_max(self.summary_placeholders['q_values']),
-            'std_q': tf.sqrt(var_q)
+            'reward_avg': reward_avg,
+            'reward_max': tf.reduce_max(self.summary_placeholders['rewards']),
+            'reward_std': tf.sqrt(reward_var),
+            'q_avg': q_avg,
+            'q_max': tf.reduce_max(self.summary_placeholders['q_values']),
+            'q_std': tf.sqrt(q_var)
         }
 
         with tf.variable_scope('train'):
