@@ -67,10 +67,18 @@ class HanabiExpert(object):
             action = list(playable_idx)[0]
             return action
 
+        def hint_to_idx(hint_type, person, hint):
+            if hint_type == 'color':
+                action = game.cards_per_player * 2 + (game.max_number + game.num_colors) * person + game.max_number + game.colors.index(hint)
+            else:
+                action = game.cards_per_player * 2 + (game.max_number + game.num_colors) * person + hint - 1
+            return action
+
         # Pick hint
         if state.hint_tokens > 0:
             tier1_hints = set()
             tier2_hints = set()
+            tier3_hints = set()
             unhinted_numbers = []
             for other_player_num in range(1, game.num_players):
                 player_id = (state.cur_player + other_player_num) % game.num_players
@@ -83,9 +91,29 @@ class HanabiExpert(object):
                             tier1_hints.add(('number', other_player_num-1, hinted_card.number))
                         if not hinted_card.number_hint and not hinted_card.number_hint:
                             tier2_hints.add(('number', other_player_num-1, hinted_card.number))
-            print("Tier 1:", tier1_hints)
-            print("Tier 2:", tier2_hints)
+                    if not hinted_card.number_hint and hinted_card.number > min(state.played_numbers.values()):
+                        tier3_hints.add(('number', other_player_num-1, hinted_card.number))
             if len(tier1_hints) > 0:
                 hint_type, person, hint = list(tier1_hints)[0]
-                if hint_type == 'color':
-                    print
+                return hint_to_idx(hint_type, person, hint)
+            if len(tier2_hints) > 0:
+                hint_type, person, hint = list(tier2_hints)[0]
+                return hint_to_idx(hint_type, person, hint)
+            if len(tier3_hints) > 0:
+                hint_type, person, hint = list(sorted(list(tier3_hints)))[0]
+                return hint_to_idx(hint_type, person, hint)
+
+        # Pick safe discard
+        if len(dead_idx) > 0:
+            discard = list(dead_idx)[0]
+        elif len(indispensable_idx) < game.cards_per_player:
+            for idx in range(game.cards_per_player):
+                if idx not in indispensable_idx:
+                    discard = idx
+        elif len(valid_actions) > 2 * game.cards_per_player:
+            # try to give any hint possible
+            return sorted(valid_actions)[2 * game.cards_per_player]
+        else:
+            discard = game.cards_per_player - 1
+
+        return discard + game.cards_per_player
