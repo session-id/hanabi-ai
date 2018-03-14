@@ -26,6 +26,7 @@ class QL_Config(object):
     q_values_metrics_size = 1000 # size of moving window for computing statistics of q_values
     target_update_freq = 1000
     replay_buffer_size = 100    # number of (s,a,r,s') tuples to keep in replay buffer
+    use_double_q = True
 
     cheating = False
     bomb_reward = -2.
