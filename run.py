@@ -18,6 +18,7 @@ if __name__=='__main__':
     train_simulator = hs.RegularHanabiGameEasyFeatures(config.num_players,
             config.colors, config.cards_per_player, config.max_number, config.number_counts)
     test_simulator = train_simulator
+    print("State size:", train_simulator.get_state_vector_size())
 
     def eps_decay(step):
         if step >= config.eps_nsteps:
