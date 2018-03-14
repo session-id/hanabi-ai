@@ -397,10 +397,10 @@ class RegularHanabiGameEasyFeatures(object):
         if state.bomb_tokens == 0:
             done = True
 
-        state.advance_player()
-
         if not done:
             reward += alive_reward
+
+        state.advance_player()
 
         return state, reward, done
 

@@ -34,7 +34,7 @@ class QL_Model(RL_Model):
     Subclasses must implement the _get_q_values_op() method.
     '''
 
-    def __init__(self, config, train_simulator, test_simulator, eps_decay):
+    def __init__(self, config, train_simulator, test_simulator, eps_decay, expert_model):
         '''
         Args
         - config
@@ -98,7 +98,8 @@ class QL_Model(RL_Model):
         self.best_reward2 = 0.0
         self.best_std2 = 0.0
 
-
+        self.expert_model = expert_model # can be None
+        
     def _get_q_values_wrapper(self, state, valid_actions_mask, scope):
         '''
         Args
@@ -221,7 +222,29 @@ class QL_Model(RL_Model):
                 new_state, reward, done = self.train_simulator.take_action(state, action,
                         bomb_reward=self.config.bomb_reward * decay,
                         alive_reward = self.config.alive_reward * decay)
+                # new_state and done may be updated by expert_model
 
+                print('who just played?', state.cur_player, new_state.cur_player)
+                
+                # # TODO: fix this block of code
+                # expert's turn
+                if (self.expert_model is not None and
+                    not done and
+                    state.num_players == 2):
+                    print('expert\'s turn')
+                    
+                    expert_action = self.expert_model.get_action(state)
+                    print('expert action', expert_action)
+                    assert(expert_action in self.train_simulator.get_valid_actions(state), 'expert action is invalid')
+                    # update step:
+                    new_state, expert_reward, done = self.train_simulator.take_action(
+                        new_state, expert_action,
+                        bomb_reward=self.config.bomb_reward * decay,
+                        alive_reward = self.config.alive_reward * decay)
+                    
+                    reward += expert_reward
+
+                
                 valid_actions_next_mask = np.zeros(num_actions, dtype=bool)
                 valid_action_indices = list(self.train_simulator.get_valid_actions(new_state))
                 valid_actions_next_mask[valid_action_indices] = True
