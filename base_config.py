@@ -16,8 +16,12 @@ class QL_Config(object):
 
     gamma = 0.9                 # discount factor
     lr = 0.01                   # learning rate
+
+    grad_clip = False           # whether or not to clip gradients
+    clip_val = 5                # what value to clip the gradients to (if grad_clip == True)
     
     batch_size = 20             # batch size
+    widths = [50, 50, 50]       # hidden layer sizes (set to [] for linear)
 
     q_values_metrics_size = 1000 # size of moving window for computing statistics of q_values
     target_update_freq = 1000
