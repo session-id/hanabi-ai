@@ -268,10 +268,10 @@ class RegularHanabiGameEasyFeatures(object):
         for other_player_num in range(1, self.num_players):
             player_id = (state.cur_player + other_player_num) % self.num_players
             for number in range(1, self.max_number+1):
-                action_names.append("Player {}: hint {}'s".format(player_id, number))
+                action_names.append("Hint {}'s for player {}".format(number, player_id))
             for color in self.colors:
-                action_names.append("Player {}: hint {}"\
-                    .format(player_id, colored(color, COLOR_TO_TERM[color])))
+                action_names.append("Hint {} for player {}"\
+                    .format(colored(color, COLOR_TO_TERM[color]), player_id))
         return action_names
 
     def get_valid_actions(self, state):

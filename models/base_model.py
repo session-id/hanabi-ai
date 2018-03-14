@@ -23,7 +23,7 @@ class RL_Model(object):
     def evaluate(self):
         raise NotImplementedError
 
-    def save(self):
+    def save(self, step):
         raise NotImplementedError
 
 
@@ -34,7 +34,7 @@ class QL_Model(RL_Model):
     Subclasses must implement the _get_q_values_op() method.
     '''
 
-    def __init__(self, config, train_simulator, test_simulator, eps_decay, expert_model):
+    def __init__(self, config, train_simulator, test_simulator, eps_decay, expert_model=None, ckpt_prefix=None):
         '''
         Args
         - config
@@ -67,11 +67,15 @@ class QL_Model(RL_Model):
         # build the graph
         self.build()
 
-        init = tf.global_variables_initializer()
-        self.sess.run(init)
+        # initialize variables
+        if ckpt_prefix is not None:
+            self.load(ckpt_prefix)
+        else:
+            init = tf.global_variables_initializer()
+            self.sess.run(init)
 
-        # Synchronize networks
-        self.sess.run(self.update_target_op)
+            # Synchronize networks
+            self.sess.run(self.update_target_op)
 
         self.saver = tf.train.Saver()
         self.summary_writer = tf.summary.FileWriter(config.log_dir, self.sess.graph)
@@ -94,8 +98,8 @@ class QL_Model(RL_Model):
             total_parameters += variable_parameters
         print("Total parameters:", total_parameters)
 
-        self.best_reward = 0.0
-        self.best_reward2 = 0.0
+        self.best_avg_reward = 0.0
+        self.best_avg_reward2 = 0.0
         self.best_std2 = 0.0
 
         self.expert_model = expert_model # can be None
@@ -128,12 +132,12 @@ class QL_Model(RL_Model):
         raise NotImplementedError
 
 
-    def save(self):
+    def save(self, step):
         '''
         Saves the weights of the current model to config.ckpt_dir with prefix 'ckpt'
         '''
         ckpt_prefix = os.path.join(self.config.ckpt_dir, 'ckpt')
-        self.saver.save(self.sess, ckpt_prefix)
+        self.saver.save(self.sess, ckpt_prefix, global_step=step)
 
         
     def load(self, fileprefix):
@@ -279,7 +283,7 @@ class QL_Model(RL_Model):
 
             # save checkpoints (if ckpt_freq is defined)
             if self.config.ckpt_freq and episode % self.config.ckpt_freq == 0:
-                self.save()
+                self.save(step)
                 # a little hacky, but save episode number in a txt file in the same directory
                 # (for later: set episode number correctly when loading from checkpoint)
                 with open(os.path.join(self.config.ckpt_dir,'ckpt_epsisode.txt'), 'w') as f:
@@ -320,9 +324,9 @@ class QL_Model(RL_Model):
                     valid_actions_mask[valid_action_indices] = True
 
                     action, q_values = self.get_action(features, valid_actions_mask, epsilon=self.config.test_epsilon)
-                    state, reward, done = self.test_simulator.take_action(state, action)
                     if ep < self.config.num_test_to_print:
-                        print(self.test_simulator.get_action_names(state)[action])
+                        print('\t' + self.test_simulator.get_action_names(state)[action])
+                    state, reward, done = self.test_simulator.take_action(state, action)
                     if step is not None and update:
                         valid_q_values = q_values[valid_action_indices]
                         self.update_averages('test', ep_reward=None, q_values=valid_q_values)
@@ -340,17 +344,20 @@ class QL_Model(RL_Model):
                 print("")
 
             avg_reward = np.mean(rewards)
-            std_reward = np.std(rewards)
+            std_reward = np.std(rewards) / np.sqrt(len(rewards))  # estimate of population std-dev. = sample std-dev / sample_size
 
             return avg_reward, std_reward
 
         avg_reward, std_reward = eval_rewards(update=True)
 
-        if avg_reward > self.best_reward:
-            self.best_reward = avg_reward
-            self.best_reward2, self.best_std2 = eval_rewards(update=False)
+        if avg_reward > self.best_avg_reward:
+            print("New best average reward!")
+            self.save(step)
+            self.best_avg_reward = avg_reward
+            self.best_avg_reward2, self.best_std2 = eval_rewards(update=False)
 
-        msg = "Average reward: {:04.2f} +/- {:04.2f}. Best reward: {:04.2f} +/- {:04.2f}.".format(avg_reward, std_reward / np.sqrt(len(rewards)), self.best_reward2, self.best_std2 / np.sqrt(len(rewards)))
+        msg = "Average reward: {:04.2f} +/- {:04.2f}. Best reward: {:04.2f} +/- {:04.2f}.".format(
+            avg_reward, std_reward, self.best_avg_reward2, self.best_std2)
         print(msg)
 
         if step is not None:
