@@ -93,6 +93,7 @@ class HanabiExpert(object):
                             tier2_hints.add(('number', other_player_num-1, hinted_card.number))
                     if not hinted_card.number_hint and hinted_card.number > min(state.played_numbers.values()):
                         tier3_hints.add(('number', other_player_num-1, hinted_card.number))
+
             if len(tier1_hints) > 0:
                 hint_type, person, hint = list(tier1_hints)[0]
                 return hint_to_idx(hint_type, person, hint)

@@ -326,6 +326,8 @@ class RegularHanabiGameEasyFeatures(object):
         # If not needed, we can remove this copying for more efficiency
         state = copy.deepcopy(state)
         if action not in self.get_valid_actions(state):
+            print(self.get_action_names(state)[action])
+            state.print_self()
             raise RuntimeError("Invalid action: {}".format(action))
 
         # Play own card
