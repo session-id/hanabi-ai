@@ -12,7 +12,7 @@ class QL_Config(object):
     # TODO: make these unique per experiment
     log_dir = 'logs/'           # path to directory for TensorBoard summaries
     ckpt_dir = 'ckpts/'         # path to directory for checkpoints
-    ckpt_freq = 10000
+    ckpt_freq = 10000           # how often (in train steps) to create a checkpoint of model weights, set to None to not save regular checkpoints
 
     gamma = 0.9                 # discount factor
     lr = 0.01                   # learning rate
