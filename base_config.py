@@ -19,7 +19,8 @@ class QL_Config(object):
 
     grad_clip = False           # whether or not to clip gradients
     clip_val = 5                # what value to clip the gradients to (if grad_clip == True)
-    
+    fc_reg = 1e-3               # L2-regularization for hidden layer weights (not biases), set to 0 for no regularization
+
     batch_size = 20             # batch size
     widths = [50, 50, 50]       # hidden layer sizes (set to [] for linear)
 
@@ -43,4 +44,4 @@ class QL_Config(object):
     colors = ['red', 'white']   # suit colors
     cards_per_player = 3        # maximum number of cards in each player's hand
     max_number = 3              # number of the highest card
-    number_counts = [3, 2, 1]   # number of cards with each number, starting with 1
+    number_counts = [3, 2, 2]   # number of cards with each number, starting with 1
