@@ -1,49 +1,48 @@
 class Config(object):
-    run_id = 'deep3x50_eps.7_fc1e-3_lr5e-5_gradclip'
+    run_id = 'easier_widths_target_10000_bomb_2.0_alive_0.1_lr_1e-4_eps_1.0_0.2_80000_double_q_1_replay_100_hl_50000_run_1'
 
-    train_num_steps = 200000    # number of steps for training
+    train_num_steps = 400000     # number of steps for training
     train_start = 0             # how many steps of observation before beginning training
     print_freq = 50             # how often to print loss and other training statistics (training steps)
 
-    test_freq = 1000            # how often to evaluate model (training steps)
-    test_num_episodes = 200     # how many episodes to test for
-    num_test_to_print = 1       # number of test trajectories to print. set to 0 to never print
+    test_freq = 1000             # how often to evaluate model (training steps)
+    test_num_episodes = 200      # how many episodes to test for
 
     gpu = -1                    # which GPU to use. set to -1 to use CPU only
 
     # TODO: make these unique per experiment
-    log_dir = 'logs/'+run_id+'/'   # path to directory for TensorBoard summaries
-    ckpt_dir = 'ckpts/'+run_id+'/' # path to directory for checkpoints
-    ckpt_freq = 10000
+    log_dir = 'logs/' + run_id +'/'           # path to directory for TensorBoard summaries
+    ckpt_dir = 'ckpts/' + run_id +'/'         # path to directory for checkpoints
 
     gamma = 0.99                # discount factor
-    lr = 5e-5                   # learning rate
-
-    grad_clip = False           # whether or not to clip gradients
-    clip_val = 5                # what value to clip the gradients to (if grad_clip == True)
-    fc_reg = 1e-3               # L2-regularization for hidden layer weights (not biases), set to 0 for no regularization
+    lr = 1e-4                   # learning rate
+    grad_clip = False
     
-    batch_size = 100            # batch size
-    widths = [50, 50, 50]       # size of hidden layers
+    batch_size = 100             # batch size
 
-    q_values_metrics_size = 1000 # size of moving window for computing statistics of q_values
-    target_update_freq = 1000
-    replay_buffer_size = 1000   # number of (s,a,r,s') tuples to keep in replay buffer
+    widths = []           # widths if you want to do mlp stuff
+
+    q_values_metrics_size = 1000
+    target_update_freq = 10000
+    replay_buffer_size = 100
     use_double_q = True
+
+    ckpt_freq = 10000
+
+    eps_begin  = 1.0
+    eps_end    = 0.2
+    eps_nsteps = 80000 # train_num_steps/2
+    test_epsilon = 0.0         # epsilon for test-time exploration (0 for always choosing the best action)
+
+    num_test_to_print = 1       # number of test trajectories to print. set to 0 to never print
 
     cheating = False
     bomb_reward = -2.0
     alive_reward = 0.1
-    helper_reward_hl = 2000000
+    helper_reward_hl = 50000
 
-    eps_begin  = 0.7            # starting value of epsilon for e-greedy
-    eps_end    = 0.1            # ending value of epsilon decay
-    eps_delay = 20000
-    eps_nsteps = train_num_steps/2 # number of steps of epsilon decay
-    test_epsilon = 0.0          # epsilon for test-time exploration (0 for always choosing the best action)
-
-    num_players = 2             # number of players in game
-    colors = ['red', 'white']   # suit colors
-    cards_per_player = 3        # maximum number of cards in each player's hand
-    max_number = 3              # number of the highest card
-    number_counts = [3, 2, 2]   # number of cards with each number, starting with 1
+    num_players = 2
+    colors = ['red', 'white', 'blue']
+    cards_per_player = 3
+    max_number = 3
+    number_counts = [3, 2, 2]
