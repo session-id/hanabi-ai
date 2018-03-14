@@ -407,6 +407,7 @@ class QL_Model(RL_Model):
         else:
             self.train_op = optimizer.minimize(self.loss)
 
+        self.weights_norm = tf.global_norm([v for v in var_list])
         self.grad_norm = tf.global_norm([grad for grad, _ in grad_var_pairs])
 
 
@@ -428,7 +429,7 @@ class QL_Model(RL_Model):
         # self.loss
         self._add_loss_op()
 
-        # self.train_op, self.grad_norm
+        # self.train_op, self.grad_norm, self.weights_norm
         self._add_optimizer_op(scope="q")
 
         # self.summary_placeholders, self.summaries_train, self.summaries_test
@@ -475,7 +476,8 @@ class QL_Model(RL_Model):
                 for name, summary_tensor in summary_tensors.items()
             ] + [
                 tf.summary.scalar("loss", self.loss),
-                tf.summary.scalar("grad_norm", self.grad_norm)
+                tf.summary.scalar("grad_norm", self.grad_norm),
+                tf.summary.scalar("weights_norm", self.weights_norm)
             ])
 
         with tf.variable_scope('test'):
