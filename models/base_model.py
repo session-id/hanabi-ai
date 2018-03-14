@@ -81,6 +81,22 @@ class QL_Model(RL_Model):
 
         with open(os.path.join(config.log_dir, 'config.txt'), 'w') as f:
             json.dump({ x: getattr(config,x) for x in dir(config) if not x.startswith("__")}, f)
+        with open(os.path.join(config.log_dir, 'read_config.txt'), 'w') as f:
+            f.write(sorted([ (x, getattr(config,x)) for x in dir(config) if not x.startswith("__")]).__repr__())
+
+        total_parameters = 0
+        for variable in tf.trainable_variables():
+            # shape is an array of tf.Dimension
+            shape = variable.get_shape()
+            variable_parameters = 1
+            for dim in shape:
+                variable_parameters *= dim.value
+            total_parameters += variable_parameters
+        print("Total parameters:", total_parameters)
+
+        self.best_reward = 0.0
+        self.best_reward2 = 0.0
+        self.best_std2 = 0.0
 
 
     def _get_q_values_wrapper(self, state, valid_actions_mask, scope):
@@ -265,44 +281,53 @@ class QL_Model(RL_Model):
         num_actions = self.test_simulator.get_num_actions()
         rewards = np.zeros(num_episodes, dtype=np.float64)
 
-        for ep in range(self.config.test_num_episodes):
-            if ep < self.config.num_test_to_print:
-                print("\nTest episode: {}".format(ep))
-            total_reward = 0
-            state = self.test_simulator.get_start_state()
-
-            while True:
+        def eval_rewards(update=True):
+            for ep in range(self.config.test_num_episodes):
                 if ep < self.config.num_test_to_print:
-                    state.print_self()
-                features = self.train_simulator.get_state_vector(state, cheat=self.config.cheating)
-                valid_actions_mask = np.zeros(num_actions, dtype=bool)
-                valid_action_indices = list(self.test_simulator.get_valid_actions(state))
-                valid_actions_mask[valid_action_indices] = True
+                    print("\nTest episode: {}".format(ep))
+                total_reward = 0
+                state = self.test_simulator.get_start_state()
 
-                action, q_values = self.get_action(features, valid_actions_mask, epsilon=self.config.test_epsilon)
-                state, reward, done = self.test_simulator.take_action(state, action)
-                if ep < self.config.num_test_to_print:
-                    print(self.test_simulator.get_action_names(state)[action])
-                if step is not None:
-                    valid_q_values = q_values[valid_action_indices]
-                    self.update_averages('test', ep_reward=None, q_values=valid_q_values)
-                total_reward += reward
-                if done:
-                    break
+                while True:
+                    if ep < self.config.num_test_to_print:
+                        state.print_self()
+                    features = self.train_simulator.get_state_vector(state, cheat=self.config.cheating)
+                    valid_actions_mask = np.zeros(num_actions, dtype=bool)
+                    valid_action_indices = list(self.test_simulator.get_valid_actions(state))
+                    valid_actions_mask[valid_action_indices] = True
 
-            # updates to perform at the end of an episode
-            rewards[ep] = total_reward
+                    action, q_values = self.get_action(features, valid_actions_mask, epsilon=self.config.test_epsilon)
+                    state, reward, done = self.test_simulator.take_action(state, action)
+                    if ep < self.config.num_test_to_print:
+                        print(self.test_simulator.get_action_names(state)[action])
+                    if step is not None and update:
+                        valid_q_values = q_values[valid_action_indices]
+                        self.update_averages('test', ep_reward=None, q_values=valid_q_values)
+                    total_reward += reward
+                    if done:
+                        break
 
-            if step is not None:
-                self.update_averages('test', ep_reward=total_reward, q_values=None)
+                # updates to perform at the end of an episode
+                rewards[ep] = total_reward
 
-        if self.config.num_test_to_print > 0:
-            print("")
+                if step is not None and update:
+                    self.update_averages('test', ep_reward=total_reward, q_values=None)
 
-        avg_reward = np.mean(rewards)
-        std_reward = np.std(rewards)
+            if self.config.num_test_to_print > 0:
+                print("")
 
-        msg = "Average reward: {:04.2f} +/- {:04.2f}".format(avg_reward, std_reward / np.sqrt(len(rewards)))
+            avg_reward = np.mean(rewards)
+            std_reward = np.std(rewards)
+
+            return avg_reward, std_reward
+
+        avg_reward, std_reward = eval_rewards(update=True)
+
+        if avg_reward > self.best_reward:
+            self.best_reward = avg_reward
+            self.best_reward2, self.best_std2 = eval_rewards(update=False)
+
+        msg = "Average reward: {:04.2f} +/- {:04.2f}. Best reward: {:04.2f} +/- {:04.2f}.".format(avg_reward, std_reward / np.sqrt(len(rewards)), self.best_reward2, self.best_std2 / np.sqrt(len(rewards)))
         print(msg)
 
         if step is not None:
@@ -478,7 +503,10 @@ class QL_Model(RL_Model):
         num_actions = self.train_simulator.get_num_actions()
         not_done = 1 - tf.cast(self.placeholders['done_mask'], tf.float32)
 
-        best_next_actions = tf.one_hot(tf.argmax(self.double_q, axis=1), num_actions)
+        if self.config.use_double_q:
+            best_next_actions = tf.one_hot(tf.argmax(self.double_q, axis=1), num_actions)
+        else:
+            best_next_actions = tf.one_hot(tf.argmax(self.target_q, axis=1), num_actions)
         y = self.placeholders['rewards'] + not_done * self.config.gamma * \
             tf.reduce_sum(self.target_q * best_next_actions, axis=1)
 
