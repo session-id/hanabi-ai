@@ -160,7 +160,7 @@ class QL_Model(RL_Model):
 
         Returns: (action, q_values)
         - action: int, index of the action to take
-        - q_values: np.array, type float32, vector of Q-values for the given state
+        - q_values: np.array of np.float32, shape [num_actions], Q-values for each action
         '''
         q_values = self.sess.run(self.q, feed_dict={
             self.placeholders['states']: [state],
@@ -172,6 +172,25 @@ class QL_Model(RL_Model):
             return random_action, q_values
         else:
             return np.argmax(q_values), q_values
+
+
+    def get_target_action(self, state, valid_actions_mask):
+        '''
+        Uses the target Q-network to choose an action greedily.
+
+        Args
+        - state: np.array, shape [state_dim]
+        - valid_actions_mask: np.array, shape [num_actions]
+
+        Returns: (action, q_values)
+        - action: int, index of the action to take
+        - q_values: np.array of np.float32, shape [num_actions], Q-values for each action
+        '''
+        target_q_values = self.sess.run(self.target_q, feed_dict={
+            self.placeholders['states_next']: [state],
+            self.placeholders['valid_actions_next_mask']: [valid_actions_mask]
+        })[0]
+        return np.argmax(target_q_values), target_q_values
 
 
     def update_averages(self, split, ep_reward=None, q_values=None):
@@ -228,22 +247,29 @@ class QL_Model(RL_Model):
                         alive_reward = self.config.alive_reward * decay)
                 # `new_state` and `done` may be updated by expert_model
 
-                # expert's turn
-                if (self.expert_model is not None and
-                    not done and
-                    state.num_players == 2):
-                    
-                    expert_action = self.expert_model.get_action(new_state)
-                    # print('expert action', expert_action)
-                    # assert(expert_action in self.train_simulator.get_valid_actions(new_state), 'expert action is invalid')
-                    # update step:
-                    new_state, expert_reward, done = self.train_simulator.take_action(
-                        new_state, expert_action,
-                        bomb_reward=self.config.bomb_reward * decay,
-                        alive_reward = self.config.alive_reward * decay)
-                    
-                    reward += expert_reward
-
+                # if we use a different 2nd-player than our own agent
+                if state.num_players == 2 and not done:
+                    different_player2 = False
+                    # expert's turn
+                    if self.expert_model is not None:
+                        different_player2 = True
+                        player2_action = self.expert_model.get_action(new_state)
+                        # print('expert action', expert_action)
+                        # assert(expert_action in self.train_simulator.get_valid_actions(new_state), 'expert action is invalid')
+                    elif self.config.use_target_q_as_player2:
+                        different_player2 = True
+                        new_features = self.train_simulator.get_state_vector(new_state, cheat=self.config.cheating)
+                        valid_actions_next_mask = np.zeros(num_actions, dtype=bool)
+                        valid_action_indices = list(self.train_simulator.get_valid_actions(new_state))
+                        valid_actions_next_mask[valid_action_indices] = True
+                        player2_action, _ = self.get_target_action(new_features, valid_actions_next_mask)
+                    if different_player2:
+                        # update step
+                        new_state, player2_reward, done = self.train_simulator.take_action(
+                            new_state, player2_action,
+                            bomb_reward = self.config.bomb_reward * decay,
+                            alive_reward = self.config.alive_reward * decay)
+                        reward += player2_reward
 
                 valid_actions_next_mask = np.zeros(num_actions, dtype=bool)
                 valid_action_indices = list(self.train_simulator.get_valid_actions(new_state))

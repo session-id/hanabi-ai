@@ -28,6 +28,7 @@ class QL_Config(object):
     target_update_freq = 1000
     replay_buffer_size = 100    # number of (s,a,r,s') tuples to keep in replay buffer
     use_double_q = True
+    use_target_q_as_player2 = True
 
     cheating = False
     bomb_reward = -2.
